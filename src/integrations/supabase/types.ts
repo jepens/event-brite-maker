@@ -14,7 +14,163 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      events: {
+        Row: {
+          branding_config: Json | null
+          created_at: string
+          created_by: string
+          custom_fields: Json | null
+          description: string | null
+          event_date: string | null
+          id: string
+          location: string | null
+          max_participants: number | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          branding_config?: Json | null
+          created_at?: string
+          created_by: string
+          custom_fields?: Json | null
+          description?: string | null
+          event_date?: string | null
+          id?: string
+          location?: string | null
+          max_participants?: number | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          branding_config?: Json | null
+          created_at?: string
+          created_by?: string
+          custom_fields?: Json | null
+          description?: string | null
+          event_date?: string | null
+          id?: string
+          location?: string | null
+          max_participants?: number | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      registrations: {
+        Row: {
+          custom_data: Json | null
+          event_id: string
+          id: string
+          participant_email: string
+          participant_name: string
+          processed_at: string | null
+          processed_by: string | null
+          registered_at: string
+          status: Database["public"]["Enums"]["registration_status"]
+        }
+        Insert: {
+          custom_data?: Json | null
+          event_id: string
+          id?: string
+          participant_email: string
+          participant_name: string
+          processed_at?: string | null
+          processed_by?: string | null
+          registered_at?: string
+          status?: Database["public"]["Enums"]["registration_status"]
+        }
+        Update: {
+          custom_data?: Json | null
+          event_id?: string
+          id?: string
+          participant_email?: string
+          participant_name?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          registered_at?: string
+          status?: Database["public"]["Enums"]["registration_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tickets: {
+        Row: {
+          id: string
+          issued_at: string
+          qr_code: string
+          qr_image_url: string | null
+          registration_id: string
+          status: Database["public"]["Enums"]["ticket_status"]
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          id?: string
+          issued_at?: string
+          qr_code: string
+          qr_image_url?: string | null
+          registration_id: string
+          status?: Database["public"]["Enums"]["ticket_status"]
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          id?: string
+          issued_at?: string
+          qr_code?: string
+          qr_image_url?: string | null
+          registration_id?: string
+          status?: Database["public"]["Enums"]["ticket_status"]
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: true
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +179,9 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      registration_status: "pending" | "approved" | "rejected"
+      ticket_status: "unused" | "used"
+      user_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +308,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      registration_status: ["pending", "approved", "rejected"],
+      ticket_status: ["unused", "used"],
+      user_role: ["admin", "user"],
+    },
   },
 } as const
