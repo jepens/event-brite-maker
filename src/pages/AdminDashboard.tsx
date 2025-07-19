@@ -19,12 +19,18 @@ const AdminDashboard = () => {
     return <Navigate to="/auth" replace />;
   }
 
+  // Show loading while profile is being fetched
+  if (!profile && user) {
+    return <div className="min-h-screen flex items-center justify-center">Loading profile...</div>;
+  }
+
   if (profile?.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
           <p className="text-muted-foreground mb-4">You don't have admin privileges.</p>
+          <p className="text-sm text-muted-foreground mb-4">Current role: {profile?.role || 'No role found'}</p>
           <Button onClick={() => signOut()}>Sign Out</Button>
         </div>
       </div>

@@ -29,12 +29,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user) {
           // Fetch user profile
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .single();
-          setProfile(profileData);
+          try {
+            const { data: profileData, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .single();
+            
+            if (error) {
+              console.error('Error fetching profile:', error);
+            }
+            setProfile(profileData);
+          } catch (error) {
+            console.error('Error in profile fetch:', error);
+            setProfile(null);
+          }
         } else {
           setProfile(null);
         }
@@ -47,15 +56,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .single()
-          .then(({ data: profileData }) => {
+        const fetchProfile = async () => {
+          try {
+            const { data: profileData, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .single();
+            
+            if (error) {
+              console.error('Error fetching profile on session check:', error);
+            }
             setProfile(profileData);
+          } catch (error) {
+            console.error('Error in profile fetch on session check:', error);
+            setProfile(null);
+          } finally {
             setLoading(false);
-          });
+          }
+        };
+        
+        fetchProfile();
       } else {
         setLoading(false);
       }
