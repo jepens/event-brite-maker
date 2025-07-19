@@ -54,29 +54,41 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (submitting) return;
+    
     setSubmitting(true);
 
-    const formData = new FormData(e.currentTarget);
-    const name = formData.get('name') as string;
-    const description = formData.get('description') as string;
-    const eventDate = formData.get('eventDate') as string;
-    const location = formData.get('location') as string;
-    const maxParticipants = parseInt(formData.get('maxParticipants') as string);
-    const primaryColor = formData.get('primaryColor') as string;
-
-    const eventData = {
-      name,
-      description,
-      event_date: eventDate ? new Date(eventDate).toISOString() : null,
-      location,
-      max_participants: maxParticipants,
-      branding_config: {
-        primaryColor: primaryColor || '#000000',
-      } as any,
-      custom_fields: customFields as any,
-    };
-
     try {
+      const formData = new FormData(e.currentTarget);
+      const name = formData.get('name') as string;
+      const description = formData.get('description') as string;
+      const eventDate = formData.get('eventDate') as string;
+      const location = formData.get('location') as string;
+      const maxParticipants = parseInt(formData.get('maxParticipants') as string);
+      const primaryColor = formData.get('primaryColor') as string;
+
+      // Validate required fields
+      if (!name.trim()) {
+        toast({
+          title: 'Error',
+          description: 'Event name is required',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const eventData = {
+        name: name.trim(),
+        description: description?.trim() || '',
+        event_date: eventDate ? new Date(eventDate).toISOString() : null,
+        location: location?.trim() || '',
+        max_participants: maxParticipants || 1000,
+        branding_config: {
+          primaryColor: primaryColor || '#000000',
+        } as any,
+        custom_fields: customFields as any,
+      };
+
       if (event) {
         // Update existing event
         const { error } = await supabase
@@ -110,9 +122,10 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
+      console.error('Error saving event:', error);
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'Failed to save event',
         variant: 'destructive',
       });
     } finally {
@@ -163,7 +176,7 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Event Name</Label>
+                <Label htmlFor="name">Event Name *</Label>
                 <Input
                   id="name"
                   name="name"
@@ -203,7 +216,7 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
                     type="number"
                     defaultValue={event?.max_participants || 1000}
                     min="1"
-                    max="1000"
+                    max="10000"
                     required
                   />
                 </div>
@@ -334,7 +347,7 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
           </Card>
 
           <div className="flex justify-end gap-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>

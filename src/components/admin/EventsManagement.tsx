@@ -32,6 +32,7 @@ export function EventsManagement() {
 
   const fetchEvents = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('events')
         .select('*')
@@ -87,6 +88,12 @@ export function EventsManagement() {
   const handleCreateEvent = () => {
     setEditingEvent(null);
     setDialogOpen(true);
+  };
+
+  const handleSuccess = () => {
+    fetchEvents();
+    setDialogOpen(false);
+    setEditingEvent(null);
   };
 
   if (loading) {
@@ -187,7 +194,7 @@ export function EventsManagement() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         event={editingEvent}
-        onSuccess={fetchEvents}
+        onSuccess={handleSuccess}
       />
     </div>
   );
