@@ -79,6 +79,9 @@ export function RegistrationsManagement() {
 
   const updateRegistrationStatus = async (registrationId: string, status: 'approved' | 'rejected') => {
     try {
+      setLoading(true);
+      
+      // Update registration status
       const { error } = await supabase
         .from('registrations')
         .update({ 
@@ -89,18 +92,45 @@ export function RegistrationsManagement() {
 
       if (error) throw error;
 
-      toast({
-        title: 'Success',
-        description: `Registration ${status} successfully`,
-      });
+      // If approved, generate QR ticket and send email
+      if (status === 'approved') {
+        console.log('Generating QR ticket for registration:', registrationId);
+        
+        const { data, error: qrError } = await supabase.functions.invoke('generate-qr-ticket', {
+          body: { registration_id: registrationId }
+        });
+
+        if (qrError) {
+          console.error('QR ticket generation failed:', qrError);
+          toast({
+            title: 'Warning',
+            description: 'Registration approved but ticket generation failed. Please try again.',
+            variant: 'destructive',
+          });
+        } else {
+          console.log('QR ticket generated successfully:', data);
+          toast({
+            title: 'Success',
+            description: 'Registration approved and ticket sent via email!',
+          });
+        }
+      } else {
+        toast({
+          title: 'Success',
+          description: `Registration ${status} successfully`,
+        });
+      }
 
       fetchRegistrations();
     } catch (error: any) {
+      console.error('Error updating registration:', error);
       toast({
         title: 'Error',
         description: error.message,
         variant: 'destructive',
       });
+    } finally {
+      setLoading(false);
     }
   };
 

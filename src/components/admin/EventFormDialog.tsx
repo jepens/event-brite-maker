@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Upload, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -43,14 +43,62 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
   const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string>('');
 
   useEffect(() => {
     if (event) {
       setCustomFields(event.custom_fields || []);
+      // Set logo preview if exists
+      if (event.branding_config?.logo_url) {
+        setLogoPreview(event.branding_config.logo_url);
+      }
     } else {
       setCustomFields([]);
+      setLogoFile(null);
+      setLogoPreview('');
     }
-  }, [event]);
+  }, [event, open]);
+
+  const handleLogoUpload = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `logos/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('event-logos')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('event-logos')
+        .getPublicUrl(filePath);
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Logo upload failed:', error);
+      return null;
+    }
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setLogoPreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeLogo = () => {
+    setLogoFile(null);
+    setLogoPreview('');
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -77,6 +125,16 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
         return;
       }
 
+      let logoUrl = logoPreview;
+
+      // Upload logo if new file is selected
+      if (logoFile) {
+        const uploadedUrl = await handleLogoUpload(logoFile);
+        if (uploadedUrl) {
+          logoUrl = uploadedUrl;
+        }
+      }
+
       const eventData = {
         name: name.trim(),
         description: description?.trim() || '',
@@ -85,6 +143,7 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
         max_participants: maxParticipants || 1000,
         branding_config: {
           primaryColor: primaryColor || '#000000',
+          logo_url: logoUrl
         } as any,
         custom_fields: customFields as any,
       };
@@ -239,7 +298,7 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
             <CardHeader>
               <CardTitle className="text-lg">Branding</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="primaryColor">Primary Color</Label>
                 <Input
@@ -248,6 +307,44 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
                   type="color"
                   defaultValue={event?.branding_config?.primaryColor || '#000000'}
                 />
+              </div>
+
+              <div>
+                <Label>Event Logo</Label>
+                <div className="space-y-4">
+                  {logoPreview ? (
+                    <div className="relative inline-block">
+                      <img 
+                        src={logoPreview} 
+                        alt="Logo preview" 
+                        className="w-32 h-32 object-cover border-2 border-gray-200 rounded-lg"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute -top-2 -right-2 rounded-full p-1 h-6 w-6"
+                        onClick={removeLogo}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                      <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-600">Upload event logo for QR codes</p>
+                    </div>
+                  )}
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoChange}
+                    className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                  />
+                  <p className="text-xs text-gray-500">
+                    This logo will be displayed in the center of QR codes for this event.
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
