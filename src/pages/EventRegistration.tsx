@@ -55,42 +55,100 @@ const EventRegistration = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (submitting) return;
+    
     setSubmitting(true);
 
     const formData = new FormData(e.currentTarget);
     const participantName = formData.get('participantName') as string;
     const participantEmail = formData.get('participantEmail') as string;
 
+    // Basic validation
+    if (!participantName?.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please enter your full name',
+        variant: 'destructive',
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    if (!participantEmail?.trim()) {
+      toast({
+        title: 'Validation Error', 
+        description: 'Please enter your email address',
+        variant: 'destructive',
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(participantEmail)) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please enter a valid email address',
+        variant: 'destructive',
+      });
+      setSubmitting(false);
+      return;
+    }
+
     // Collect custom field data
     const customData: Record<string, any> = {};
     if (event?.custom_fields) {
-      event.custom_fields.forEach((field: any) => {
+      for (const field of event.custom_fields) {
         const value = formData.get(field.name) as string;
-        customData[field.name] = value;
-      });
+        if (field.required && !value?.trim()) {
+          toast({
+            title: 'Validation Error',
+            description: `${field.label} is required`,
+            variant: 'destructive',
+          });
+          setSubmitting(false);
+          return;
+        }
+        customData[field.name] = value?.trim() || '';
+      }
     }
 
     try {
-      const { error } = await supabase
+      console.log('Submitting registration for event:', eventId);
+      console.log('Registration data:', {
+        event_id: eventId,
+        participant_name: participantName.trim(),
+        participant_email: participantEmail.trim(),
+        custom_data: customData,
+      });
+
+      const { data, error } = await supabase
         .from('registrations')
         .insert({
           event_id: eventId,
-          participant_name: participantName,
-          participant_email: participantEmail,
+          participant_name: participantName.trim(),
+          participant_email: participantEmail.trim(),
           custom_data: customData,
-        });
+        })
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Registration error:', error);
+        throw error;
+      }
 
+      console.log('Registration successful:', data);
       setSubmitted(true);
       toast({
         title: 'Registration Successful!',
         description: 'Your registration is pending approval. You will receive an email with your ticket once approved.',
       });
     } catch (error: any) {
+      console.error('Registration failed:', error);
       toast({
         title: 'Registration Failed',
-        description: error.message,
+        description: error.message || 'An unexpected error occurred. Please try again.',
         variant: 'destructive',
       });
     } finally {
