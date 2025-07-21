@@ -25,7 +25,9 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { registration_id, event_logo_url }: GenerateQRRequest = await req.json();
 
-    console.log("Generating QR ticket for registration:", registration_id);
+    console.log("Starting QR ticket generation for registration:", registration_id);
+    console.log("Supabase URL configured:", !!Deno.env.get('SUPABASE_URL'));
+    console.log("Service Role Key configured:", !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
 
     // Fetch registration details
     const { data: registration, error: regError } = await supabase
@@ -43,9 +45,20 @@ const handler = async (req: Request): Promise<Response> => {
       .eq('id', registration_id)
       .single();
 
-    if (regError || !registration) {
+    if (regError) {
+      console.error('Error fetching registration:', regError);
+      throw new Error(`Failed to fetch registration: ${regError.message}`);
+    }
+
+    if (!registration) {
       throw new Error('Registration not found');
     }
+
+    console.log("Registration fetched successfully:", { 
+      id: registration.id,
+      event_id: registration.event_id,
+      has_event_data: !!registration.events
+    });
 
     // Generate unique QR code data
     const qrData = `TICKET:${registration_id}:${Date.now()}`;
@@ -63,7 +76,9 @@ const handler = async (req: Request): Promise<Response> => {
       width: 300
     };
 
+    console.log("Generating QR code with data:", qrData);
     const qrCodeDataUrl = await QRCode.toDataURL(qrData, qrOptions);
+    console.log("QR code generated successfully");
     
     // Convert data URL to blob for storage
     const base64Data = qrCodeDataUrl.split(',')[1];
@@ -71,6 +86,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Upload QR code to storage
     const fileName = `qr-${registration_id}-${Date.now()}.png`;
+    console.log("Uploading QR code to storage:", fileName);
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('event-logos')
       .upload(`qr-codes/${fileName}`, imageBuffer, {
@@ -80,8 +96,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (uploadError) {
       console.error('Upload error:', uploadError);
-      throw new Error('Failed to upload QR code');
+      throw new Error(`Failed to upload QR code: ${uploadError.message}`);
     }
+
+    console.log("QR code uploaded successfully");
 
     // Get public URL for the uploaded QR code
     const { data: urlData } = supabase.storage
@@ -89,6 +107,7 @@ const handler = async (req: Request): Promise<Response> => {
       .getPublicUrl(`qr-codes/${fileName}`);
 
     // Create ticket record
+    console.log("Creating ticket record");
     const { data: ticket, error: ticketError } = await supabase
       .from('tickets')
       .insert({
@@ -101,10 +120,11 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     if (ticketError) {
-      throw new Error('Failed to create ticket');
+      console.error('Ticket creation error:', ticketError);
+      throw new Error(`Failed to create ticket: ${ticketError.message}`);
     }
 
-    console.log("QR ticket generated successfully for registration:", registration_id);
+    console.log("Ticket record created successfully");
 
     // Send email notification
     const emailPayload = {
@@ -117,6 +137,8 @@ const handler = async (req: Request): Promise<Response> => {
       qr_image_url: urlData.publicUrl
     };
 
+    console.log("Sending email notification with payload:", emailPayload);
+
     // Call send-ticket-email function
     const emailResponse = await supabase.functions.invoke('send-ticket-email', {
       body: emailPayload
@@ -125,6 +147,8 @@ const handler = async (req: Request): Promise<Response> => {
     if (emailResponse.error) {
       console.error('Email sending failed:', emailResponse.error);
       // Don't fail the whole process if email fails
+    } else {
+      console.log("Email sent successfully");
     }
 
     return new Response(JSON.stringify({
@@ -142,7 +166,10 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error in generate-qr-ticket function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        stack: error.stack 
+      }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },

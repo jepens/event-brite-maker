@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, MapPin, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { VirtualList } from '@/components/ui/virtual-list';
+import { OptimizedImage } from '@/components/ui/optimized-image';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Event {
   id: string;
@@ -16,6 +19,68 @@ interface Event {
   max_participants: number;
   branding_config: any;
 }
+
+const EventCard = ({ event }: { event: Event }) => (
+  <Card className="hover:shadow-lg transition-shadow h-[400px]">
+    <CardHeader>
+      {event.branding_config?.headerImage && (
+        <OptimizedImage
+          src={event.branding_config.headerImage}
+          alt={event.name}
+          className="w-full h-40 object-cover rounded-t-lg"
+        />
+      )}
+      <CardTitle className="line-clamp-2">{event.name}</CardTitle>
+      <CardDescription className="line-clamp-3">
+        {event.description}
+      </CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-4">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Calendar className="h-4 w-4" />
+        {event.event_date ? format(new Date(event.event_date), 'PPP') : 'Date TBA'}
+      </div>
+      
+      {event.location && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <MapPin className="h-4 w-4" />
+          {event.location}
+        </div>
+      )}
+      
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Users className="h-4 w-4" />
+        Max {event.max_participants} participants
+      </div>
+
+      <div className="flex gap-2">
+        <Badge variant="secondary">Free</Badge>
+        <Badge variant="outline">Registration Required</Badge>
+      </div>
+
+      <Link to={`/event/${event.id}`} className="block">
+        <Button className="w-full">Register Now</Button>
+      </Link>
+    </CardContent>
+  </Card>
+);
+
+const EventCardSkeleton = () => (
+  <Card className="h-[400px]">
+    <CardHeader>
+      <Skeleton className="w-full h-40" />
+      <Skeleton className="h-6 w-3/4 mt-4" />
+      <Skeleton className="h-4 w-full mt-2" />
+      <Skeleton className="h-4 w-2/3 mt-1" />
+    </CardHeader>
+    <CardContent className="space-y-4">
+      <Skeleton className="h-4 w-1/2" />
+      <Skeleton className="h-4 w-2/3" />
+      <Skeleton className="h-4 w-1/3" />
+      <Skeleton className="h-8 w-full mt-4" />
+    </CardContent>
+  </Card>
+);
 
 const EventList = () => {
   const [events, setEvents] = useState<Event[]>([]);
@@ -42,7 +107,15 @@ const EventList = () => {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array(6).fill(0).map((_, i) => (
+            <EventCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -66,45 +139,16 @@ const EventList = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event) => (
-              <Card key={event.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="line-clamp-2">{event.name}</CardTitle>
-                  <CardDescription className="line-clamp-3">
-                    {event.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    {event.event_date ? format(new Date(event.event_date), 'PPP') : 'Date TBA'}
-                  </div>
-                  
-                  {event.location && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      {event.location}
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="h-4 w-4" />
-                    Max {event.max_participants} participants
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Badge variant="secondary">Free</Badge>
-                    <Badge variant="outline">Registration Required</Badge>
-                  </div>
-
-                  <Link to={`/event/${event.id}`} className="block">
-                    <Button className="w-full">Register Now</Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <VirtualList
+            items={events}
+            itemHeight={400}
+            className="h-[calc(100vh-200px)]"
+            renderItem={(event) => (
+              <div className="px-3">
+                <EventCard event={event} />
+              </div>
+            )}
+          />
         )}
       </div>
     </div>

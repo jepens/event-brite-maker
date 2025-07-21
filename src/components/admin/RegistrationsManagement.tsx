@@ -5,10 +5,25 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Search, CheckCircle, XCircle, Clock, Users } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Clock, Users, QrCode, Eye, Download, Mail } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { QRCodeCanvas } from 'qrcode.react';
+
+interface Ticket {
+  id: string;
+  qr_code: string;
+  qr_image_url: string;
+  status: 'unused' | 'used';
+}
 
 interface Registration {
   id: string;
@@ -21,6 +36,7 @@ interface Registration {
   events: {
     name: string;
   };
+  tickets: Ticket[];
 }
 
 export function RegistrationsManagement() {
@@ -30,27 +46,70 @@ export function RegistrationsManagement() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [eventFilter, setEventFilter] = useState<string>('all');
   const [events, setEvents] = useState<any[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<Registration | null>(null);
+  const [showQRDialog, setShowQRDialog] = useState(false);
 
   useEffect(() => {
     fetchRegistrations();
     fetchEvents();
   }, []);
 
+  useEffect(() => {
+    console.log('Current registrations:', registrations);
+  }, [registrations]);
+
   const fetchRegistrations = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      console.log('Fetching registrations...');
+      
+      // First, get all registrations
+      const { data: registrationsData, error: registrationsError } = await supabase
         .from('registrations')
         .select(`
-          *,
+          id,
+          participant_name,
+          participant_email,
+          status,
+          registered_at,
+          custom_data,
+          event_id,
           events (
             name
           )
         `)
         .order('registered_at', { ascending: false });
 
-      if (error) throw error;
-      setRegistrations(data || []);
+      if (registrationsError) throw registrationsError;
+
+      // Then, for each registration, get its ticket
+      const registrationsWithTickets = await Promise.all(
+        (registrationsData || []).map(async (registration) => {
+          const { data: ticketsData, error: ticketsError } = await supabase
+            .from('tickets')
+            .select('*')
+            .eq('registration_id', registration.id);
+
+          if (ticketsError) {
+            console.error('Error fetching tickets for registration:', registration.id, ticketsError);
+            return {
+              ...registration,
+              events: registration.events[0], // Fix the events structure
+              tickets: []
+            };
+          }
+
+          console.log(`Tickets for registration ${registration.id}:`, ticketsData);
+          return {
+            ...registration,
+            events: registration.events[0], // Fix the events structure
+            tickets: ticketsData || []
+          };
+        })
+      );
+
+      console.log('Registrations with tickets:', registrationsWithTickets);
+      setRegistrations(registrationsWithTickets as Registration[]);
     } catch (error) {
       console.error('Error fetching registrations:', error);
       toast({
@@ -100,11 +159,20 @@ export function RegistrationsManagement() {
           body: { registration_id: registrationId }
         });
 
+        console.log('QR generation response:', { data, error: qrError });
+
         if (qrError) {
           console.error('QR ticket generation failed:', qrError);
           toast({
             title: 'Warning',
-            description: 'Registration approved but ticket generation failed. Please try again.',
+            description: `Registration approved but ticket generation failed: ${qrError.message || 'Unknown error'}`,
+            variant: 'destructive',
+          });
+        } else if (!data) {
+          console.error('QR ticket generation returned no data');
+          toast({
+            title: 'Warning',
+            description: 'Registration approved but ticket generation returned no data. Please try again.',
             variant: 'destructive',
           });
         } else {
@@ -113,20 +181,21 @@ export function RegistrationsManagement() {
             title: 'Success',
             description: 'Registration approved and ticket sent via email!',
           });
+          // Refresh registrations to get the new ticket
+          await fetchRegistrations();
         }
       } else {
         toast({
           title: 'Success',
           description: `Registration ${status} successfully`,
         });
+        await fetchRegistrations();
       }
-
-      fetchRegistrations();
     } catch (error: any) {
       console.error('Error updating registration:', error);
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'An unknown error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -165,6 +234,209 @@ export function RegistrationsManagement() {
       default:
         return <Badge variant="secondary">Pending</Badge>;
     }
+  };
+
+  const handleViewTicket = async (registration: Registration) => {
+    try {
+      console.log('Fetching ticket for registration:', registration);
+      
+      // Fetch fresh ticket data
+      const { data: ticketData, error: ticketError } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('registration_id', registration.id)
+        .single();
+
+      if (ticketError) throw ticketError;
+
+      if (ticketData) {
+        // Fetch event details to ensure we have the latest data
+        const { data: eventData, error: eventError } = await supabase
+          .from('events')
+          .select('name')
+          .eq('id', registration.event_id)
+          .single();
+
+        if (eventError) {
+          console.error('Error fetching event details:', eventError);
+        }
+
+        setSelectedTicket({
+          ...registration,
+          events: {
+            name: eventData?.name || registration.events?.name || 'Unknown Event'
+          },
+          tickets: [ticketData]
+        });
+        setShowQRDialog(true);
+      } else {
+        toast({
+          title: 'Error',
+          description: 'No ticket found for this registration',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching ticket:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch ticket details',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDownloadQR = async (ticket: Ticket) => {
+    try {
+      const response = await fetch(ticket.qr_image_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ticket-${ticket.id}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading QR code:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to download QR code',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleResendEmail = async (registration: Registration) => {
+    try {
+      console.log('Resending email for registration:', registration.id);
+      
+      // First, get the ticket details
+      const { data: ticket, error: ticketError } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('registration_id', registration.id)
+        .single();
+
+      if (ticketError) throw ticketError;
+      if (!ticket) throw new Error('No ticket found for this registration');
+
+      // Get event details
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('name, event_date, location')
+        .eq('id', registration.event_id)
+        .single();
+
+      if (eventError) throw eventError;
+      if (!event) throw new Error('Event not found');
+
+      // Call send-ticket-email function
+      const { data, error: emailError } = await supabase.functions.invoke('send-ticket-email', {
+        body: {
+          participant_email: registration.participant_email,
+          participant_name: registration.participant_name,
+          event_name: event.name,
+          event_date: event.event_date,
+          event_location: event.location || 'TBA',
+          qr_code_data: ticket.qr_code,
+          qr_image_url: ticket.qr_image_url
+        }
+      });
+
+      if (emailError) throw emailError;
+
+      toast({
+        title: 'Success',
+        description: 'Ticket email resent successfully!',
+      });
+    } catch (error: any) {
+      console.error('Error resending email:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to resend email',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const QRDialog = () => {
+    if (!selectedTicket) {
+      console.log('No selected ticket data');
+      return null;
+    }
+
+    const ticket = selectedTicket.tickets?.[0];
+    if (!ticket) {
+      console.log('No ticket data found in selected registration');
+      return null;
+    }
+
+    console.log('Displaying ticket:', {
+      ticket,
+      registration: selectedTicket,
+      eventName: selectedTicket.events?.name
+    });
+
+    return (
+      <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ticket QR Code</DialogTitle>
+            <DialogDescription>
+              Scan this QR code or use the manual verification code below
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center space-y-6 py-4">
+            <div className="bg-white p-4 rounded-lg relative group">
+              {ticket.qr_image_url ? (
+                <>
+                  <img 
+                    src={ticket.qr_image_url} 
+                    alt="QR Code" 
+                    className="w-[200px] h-[200px] object-contain"
+                    onError={(e) => {
+                      console.error('Error loading QR image, falling back to QR canvas');
+                      e.currentTarget.style.display = 'none';
+                      // Show QRCodeCanvas as fallback
+                      const canvas = e.currentTarget.parentElement?.querySelector('canvas');
+                      if (canvas) {
+                        canvas.style.display = 'block';
+                      }
+                    }}
+                  />
+                  <div style={{ display: ticket.qr_image_url ? 'none' : 'block' }}>
+                    <QRCodeCanvas value={ticket.qr_code} size={200} level="H" />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleDownloadQR(ticket)}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
+                <QRCodeCanvas value={ticket.qr_code} size={200} level="H" />
+              )}
+            </div>
+            <div className="text-center">
+              <div className="text-sm text-muted-foreground mb-2">Manual Verification Code</div>
+              <div className="font-mono text-lg bg-muted p-2 rounded select-all">
+                {ticket.qr_code}
+              </div>
+            </div>
+            <div className="text-center text-sm text-muted-foreground">
+              <p>Event: {selectedTicket.events?.name || 'Unknown Event'}</p>
+              <p>Participant: {selectedTicket.participant_name}</p>
+              <p>Status: {ticket.status === 'unused' ? 'Not Used' : 'Used'}</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
   };
 
   if (loading) {
@@ -287,23 +559,44 @@ export function RegistrationsManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {registration.status === 'pending' && (
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => updateRegistrationStatus(registration.id, 'approved')}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => updateRegistrationStatus(registration.id, 'rejected')}
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex gap-2">
+                        {registration.status === 'pending' ? (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => updateRegistrationStatus(registration.id, 'approved')}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => updateRegistrationStatus(registration.id, 'rejected')}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        ) : registration.status === 'approved' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewTicket(registration)}
+                            >
+                              <QrCode className="h-4 w-4 mr-2" />
+                              View Ticket
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleResendEmail(registration)}
+                            >
+                              <Mail className="h-4 w-4 mr-2" />
+                              Resend Email
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -312,6 +605,8 @@ export function RegistrationsManagement() {
           )}
         </CardContent>
       </Card>
+
+      <QRDialog />
     </div>
   );
 }

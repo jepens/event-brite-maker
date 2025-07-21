@@ -1,0 +1,21 @@
+Hello {{ participant_name }},
+
+Your registration for {{ event_name }} has been approved. Here are your event details:
+
+Event: {{ event_name }}
+Date: {{ event_date }}
+Location: {{ event_location }}
+
+Your QR Code: {{ qr_code_data }}
+
+Please keep this QR code safe - it's your entry pass!
+
+Important Notes:
+- This QR code can only be used once
+- Please arrive 15 minutes before the event starts
+- Keep this email or save the QR code to your phone
+- Contact support if you have any issues
+
+Thank you for registering! We look forward to seeing you at the event.
+
+This is an automated email. Please do not reply. 
