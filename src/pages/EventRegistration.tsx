@@ -192,109 +192,184 @@ const EventRegistration = () => {
 
   return (
     <div 
-      className="min-h-screen bg-gradient-to-br from-primary/10 to-secondary/10"
+      className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5"
       style={brandingStyle}
     >
       <div className="container mx-auto py-8 px-4">
-        <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="h-4 w-4" />
+        <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors group">
+          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
           Back to Events
         </Link>
 
         <div className="max-w-2xl mx-auto">
-          {/* Event Information */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-2xl">{event.name}</CardTitle>
-              <CardDescription>{event.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4" />
-                {event.event_date ? format(new Date(event.event_date), 'PPP') : 'Date TBA'}
-              </div>
-              
-              {event.location && (
-                <div className="flex items-center gap-2 text-sm">
-                  <MapPin className="h-4 w-4" />
-                  {event.location}
+          {/* Event Information Card */}
+          <Card className="mb-8 border-0 shadow-lg bg-gradient-to-r from-white to-gray-50/50">
+            <CardHeader className="pb-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                    {event.name}
+                  </CardTitle>
+                  {event.description && (
+                    <CardDescription className="text-lg mt-2 text-muted-foreground">
+                      {event.description}
+                    </CardDescription>
+                  )}
                 </div>
-              )}
-              
-              <div className="flex items-center gap-2 text-sm">
-                <Users className="h-4 w-4" />
-                Max {event.max_participants} participants
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                  <div className="p-2 bg-blue-100 rounded-full">
+                    <Calendar className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">Date</p>
+                    <p className="text-blue-700">
+                      {event.event_date ? format(new Date(event.event_date), 'PPP') : 'Date TBA'}
+                    </p>
+                  </div>
+                </div>
+                
+                {event.location && (
+                  <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-100">
+                    <div className="p-2 bg-green-100 rounded-full">
+                      <MapPin className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-green-900">Location</p>
+                      <p className="text-green-700">{event.location}</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-lg border border-purple-100">
+                  <div className="p-2 bg-purple-100 rounded-full">
+                    <Users className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-purple-900">Capacity</p>
+                    <p className="text-purple-700">Max {event.max_participants} participants</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex gap-2">
-                <Badge variant="secondary">Free Event</Badge>
-                <Badge variant="outline">Registration Required</Badge>
+              <div className="flex gap-3">
+                <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                  Free Event
+                </Badge>
+                <Badge variant="outline" className="border-orange-200 text-orange-700">
+                  Registration Required
+                </Badge>
               </div>
             </CardContent>
           </Card>
 
           {/* Registration Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Register for this Event</CardTitle>
-              <CardDescription>
-                Please fill out the form below to register. All fields are required.
+          <Card className="shadow-xl border-0 bg-white">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="text-2xl font-bold text-gray-900">
+                Register for this Event
+              </CardTitle>
+              <CardDescription className="text-base">
+                Please fill out the form below to secure your spot. All fields marked with * are required.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="participantName">Full Name</Label>
-                  <Input
-                    id="participantName"
-                    name="participantName"
-                    type="text"
-                    placeholder="Enter your full name"
-                    required
-                  />
-                </div>
+            <CardContent className="pt-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="participantName" className="text-sm font-semibold text-gray-700">
+                      Full Name *
+                    </Label>
+                    <Input
+                      id="participantName"
+                      name="participantName"
+                      type="text"
+                      placeholder="Enter your full name"
+                      required
+                      className="h-12 text-base border-2 border-gray-200 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="participantEmail">Email Address</Label>
-                  <Input
-                    id="participantEmail"
-                    name="participantEmail"
-                    type="email"
-                    placeholder="Enter your email address"
-                    required
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="participantEmail" className="text-sm font-semibold text-gray-700">
+                      Email Address *
+                    </Label>
+                    <Input
+                      id="participantEmail"
+                      name="participantEmail"
+                      type="email"
+                      placeholder="Enter your email address"
+                      required
+                      className="h-12 text-base border-2 border-gray-200 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
                 </div>
 
                 {/* Dynamic Custom Fields */}
-                {event.custom_fields && event.custom_fields.map((field: any, index: number) => (
-                  <div key={index} className="space-y-2">
-                    <Label htmlFor={field.name}>
-                      {field.label}
-                      {field.required && <span className="text-red-500">*</span>}
-                    </Label>
-                    {field.type === 'textarea' ? (
-                      <Textarea
-                        id={field.name}
-                        name={field.name}
-                        placeholder={field.placeholder || ''}
-                        required={field.required}
-                        rows={3}
-                      />
-                    ) : (
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type={field.type || 'text'}
-                        placeholder={field.placeholder || ''}
-                        required={field.required}
-                      />
-                    )}
+                {event.custom_fields && event.custom_fields.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="border-t pt-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Information</h3>
+                      <div className="space-y-4">
+                        {event.custom_fields.map((field: any, index: number) => (
+                          <div key={index} className="space-y-2">
+                            <Label htmlFor={field.name} className="text-sm font-semibold text-gray-700">
+                              {field.label}
+                              {field.required && <span className="text-red-500 ml-1">*</span>}
+                            </Label>
+                            {field.type === 'textarea' ? (
+                              <Textarea
+                                id={field.name}
+                                name={field.name}
+                                placeholder={field.placeholder || ''}
+                                required={field.required}
+                                rows={3}
+                                className="text-base border-2 border-gray-200 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all resize-none"
+                              />
+                            ) : (
+                              <Input
+                                id={field.name}
+                                name={field.name}
+                                type={field.type || 'text'}
+                                placeholder={field.placeholder || ''}
+                                required={field.required}
+                                className="h-12 text-base border-2 border-gray-200 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                ))}
+                )}
 
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? 'Submitting Registration...' : 'Register for Event'}
-                </Button>
+                <div className="pt-6 border-t">
+                  <Button 
+                    type="submit" 
+                    className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5" 
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Submitting Registration...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5" />
+                        Register for Event
+                      </div>
+                    )}
+                  </Button>
+                </div>
+
+                <div className="text-center text-sm text-muted-foreground">
+                  <p>By registering, you agree to receive email notifications about this event.</p>
+                  <p className="mt-1">Your registration will be reviewed and you'll receive confirmation via email.</p>
+                </div>
               </form>
             </CardContent>
           </Card>
