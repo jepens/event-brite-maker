@@ -6,8 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, MapPin, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { VirtualList } from '@/components/ui/virtual-list';
-import { OptimizedImage } from '@/components/ui/optimized-image';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface Event {
@@ -24,10 +22,11 @@ const EventCard = ({ event }: { event: Event }) => (
   <Card className="hover:shadow-lg transition-shadow h-[400px]">
     <CardHeader>
       {event.branding_config?.headerImage && (
-        <OptimizedImage
+        <img
           src={event.branding_config.headerImage}
           alt={event.name}
           className="w-full h-40 object-cover rounded-t-lg"
+          loading="lazy"
         />
       )}
       <CardTitle className="line-clamp-2">{event.name}</CardTitle>
@@ -139,16 +138,11 @@ const EventList = () => {
             </CardContent>
           </Card>
         ) : (
-          <VirtualList
-            items={events}
-            itemHeight={400}
-            className="h-[calc(100vh-200px)]"
-            renderItem={(event) => (
-              <div className="px-3">
-                <EventCard event={event} />
-              </div>
-            )}
-          />
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {events.map((event) => (
+              <EventCard key={event.id} event={event} />
+            ))}
+          </div>
         )}
       </div>
     </div>
