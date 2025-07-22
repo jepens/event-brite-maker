@@ -164,7 +164,7 @@ This is an automated email. Please do not reply to this message.
 
     // Send email using Resend
     const emailResponse = await resend.emails.send({
-      from: "Event Registration <noreply@yourdomain.com>", // Update with your verified domain
+      from: "Event Registration <onboarding@resend.dev>", // Using Resend's default domain
       to: [participant_email],
       subject: `🎫 Your Ticket for ${event_name}`,
       html: htmlContent,
