@@ -173,7 +173,13 @@ This is an automated email. Please do not reply to this message.
 
     if (emailResponse.error) {
       console.error("Resend API error:", emailResponse.error);
-      throw new Error(`Failed to send email: ${emailResponse.error.message}`);
+      
+      // Handle specific Resend domain verification error
+      if (emailResponse.error.message && emailResponse.error.message.includes('verify a domain')) {
+        throw new Error(`Email sending failed: You need to verify a domain at resend.com/domains to send emails to other recipients. Currently, you can only send emails to your own email address.`);
+      }
+      
+      throw new Error(`Failed to send email: ${emailResponse.error.message || 'Unknown error'}`);
     }
 
     console.log("Email sent successfully:", emailResponse.data);
