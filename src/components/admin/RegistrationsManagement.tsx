@@ -5,37 +5,45 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Search, CheckCircle, XCircle, Clock, Users, QrCode, Eye, Download, Mail } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Search, CheckCircle, XCircle, Clock, Users, QrCode, Eye, Download, Mail, Trash2, FileDown } from 'lucide-react';
+import { supabase, deleteRegistration, testConnectionAndEvents } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { downloadRegistrations, DownloadOptions } from '@/lib/download-service';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { QRCodeCanvas } from 'qrcode.react';
 
 interface Ticket {
   id: string;
   qr_code: string;
+  short_code?: string;
   qr_image_url: string;
   status: 'unused' | 'used';
+  whatsapp_sent?: boolean;
+  whatsapp_sent_at?: string;
 }
 
 interface Registration {
   id: string;
   participant_name: string;
   participant_email: string;
+  phone_number?: string;
   status: 'pending' | 'approved' | 'rejected';
   registered_at: string;
-  custom_data: any;
+  custom_data: Record<string, unknown>;
   event_id: string;
   events: {
+    id: string;
     name: string;
-  };
+    whatsapp_enabled?: boolean; // Type-safe property access
+  } | null;
   tickets: Ticket[];
 }
 
@@ -45,11 +53,20 @@ export function RegistrationsManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [eventFilter, setEventFilter] = useState<string>('all');
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<{ id: string; name: string }[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Registration | null>(null);
   const [showQRDialog, setShowQRDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [registrationToDelete, setRegistrationToDelete] = useState<Registration | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
+    // Test connection and events data first
+    testConnectionAndEvents().then(result => {
+      console.log('Connection test result:', result);
+    });
+    
     fetchRegistrations();
     fetchEvents();
   }, []);
@@ -70,19 +87,30 @@ export function RegistrationsManagement() {
           id,
           participant_name,
           participant_email,
+          phone_number,
           status,
           registered_at,
           custom_data,
           event_id,
           events (
-            name
+            id,
+            name,
+            whatsapp_enabled
           )
         `)
         .order('registered_at', { ascending: false });
 
       if (registrationsError) throw registrationsError;
 
-      // Then, for each registration, get its ticket
+      console.log('Raw registrations data:', registrationsData);
+      
+      // Debug: Check if event_id matches any events
+      if (registrationsData && registrationsData.length > 0) {
+        console.log('Registration event_ids:', registrationsData.map(r => r.event_id));
+        console.log('Events from join:', registrationsData.map(r => r.events));
+      }
+
+      // Then, for each registration, get its ticket and ensure event data
       const registrationsWithTickets = await Promise.all(
         (registrationsData || []).map(async (registration) => {
           const { data: ticketsData, error: ticketsError } = await supabase
@@ -90,11 +118,40 @@ export function RegistrationsManagement() {
             .select('*')
             .eq('registration_id', registration.id);
 
+          // Get event data from join or fetch directly if needed
+          let eventData: { id: string; name: string; whatsapp_enabled?: boolean } | null = null;
+          
+          // Check if events data exists from join
+          if (registration.events && typeof registration.events === 'object' && !Array.isArray(registration.events)) {
+            eventData = registration.events as { id: string; name: string; whatsapp_enabled?: boolean };
+          }
+          
+          if (!eventData) {
+            console.log(`Fetching event data directly for registration ${registration.id}, event_id: ${registration.event_id}`);
+            const { data: directEventData, error: directEventError } = await supabase
+              .from('events')
+              .select('id, name, whatsapp_enabled')
+              .eq('id', registration.event_id)
+              .single();
+            
+            if (directEventError) {
+              console.error('Error fetching event directly:', directEventError);
+              eventData = { 
+                id: registration.event_id, 
+                name: 'Unknown Event', 
+                whatsapp_enabled: false 
+              };
+            } else {
+              console.log('Direct event fetch successful:', directEventData);
+              eventData = directEventData;
+            }
+          }
+
           if (ticketsError) {
             console.error('Error fetching tickets for registration:', registration.id, ticketsError);
             return {
               ...registration,
-              events: registration.events[0], // Fix the events structure
+              events: eventData,
               tickets: []
             };
           }
@@ -102,14 +159,14 @@ export function RegistrationsManagement() {
           console.log(`Tickets for registration ${registration.id}:`, ticketsData);
           return {
             ...registration,
-            events: registration.events[0], // Fix the events structure
+            events: eventData,
             tickets: ticketsData || []
           };
         })
       );
 
       console.log('Registrations with tickets:', registrationsWithTickets);
-      setRegistrations(registrationsWithTickets as Registration[]);
+      setRegistrations(registrationsWithTickets as unknown as Registration[]);
     } catch (error) {
       console.error('Error fetching registrations:', error);
       toast({
@@ -191,11 +248,11 @@ export function RegistrationsManagement() {
         });
         await fetchRegistrations();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating registration:', error);
       toast({
         title: 'Error',
-        description: error.message || 'An unknown error occurred',
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -250,6 +307,10 @@ export function RegistrationsManagement() {
       if (ticketError) throw ticketError;
 
       if (ticketData) {
+        // Log the fetched ticket data to debug short_code
+        console.log('Fetched ticket data:', ticketData);
+        console.log('Short code in ticket data:', ticketData.short_code);
+        
         // Fetch event details to ensure we have the latest data
         const { data: eventData, error: eventError } = await supabase
           .from('events')
@@ -264,7 +325,15 @@ export function RegistrationsManagement() {
         setSelectedTicket({
           ...registration,
           events: {
-            name: eventData?.name || registration.events?.name || 'Unknown Event'
+            id: registration.event_id,
+            name: eventData?.name 
+              || (typeof registration.events === 'object' && registration.events && 'name' in registration.events 
+                  ? (registration.events as Record<string, unknown>).name as string
+                  : 'Unknown Event'),
+            whatsapp_enabled: eventData?.whatsapp_enabled 
+              ?? (typeof registration.events === 'object' && registration.events && 'whatsapp_enabled' in registration.events
+                  ? (registration.events as Record<string, unknown>).whatsapp_enabled as boolean
+                  : false)
           },
           tickets: [ticketData]
         });
@@ -351,13 +420,111 @@ export function RegistrationsManagement() {
         title: 'Success',
         description: 'Ticket email resent successfully!',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error resending email:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to resend email',
+        description: error instanceof Error ? error.message : 'Failed to resend email',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleDeleteRegistration = async (registration: Registration) => {
+    console.log('Registration to delete:', registration);
+    console.log('Event data:', registration.events);
+    setRegistrationToDelete(registration);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDownloadRegistrations = async (format: 'csv' | 'excel' = 'csv') => {
+    try {
+      setDownloading(true);
+      
+      const options: DownloadOptions = {
+        eventId: eventFilter === 'all' ? undefined : eventFilter,
+        status: statusFilter === 'all' ? 'all' : statusFilter as 'pending' | 'approved' | 'rejected',
+        format
+      };
+
+      await downloadRegistrations(options);
+      
+      toast({
+        title: 'Success',
+        description: `Registrations downloaded successfully as ${format.toUpperCase()}`,
+      });
+    } catch (error) {
+      console.error('Error downloading registrations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to download registrations',
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!registrationToDelete) return;
+
+    try {
+      setDeleting(true);
+      console.log('Deleting registration:', registrationToDelete.id);
+      
+      const { error } = await deleteRegistration(registrationToDelete.id);
+
+      if (error) {
+        console.error('Delete error:', error);
+        throw error;
+      }
+
+      console.log('Registration deleted successfully from database');
+
+      // Remove from local state
+      setRegistrations(prev => {
+        const filtered = prev.filter(r => r.id !== registrationToDelete.id);
+        console.log('Updated local state, remaining registrations:', filtered.length);
+        return filtered;
+      });
+
+      // Force refresh registrations to ensure UI is in sync
+      console.log('Forcing refresh of registrations...');
+      await fetchRegistrations();
+      
+      // Double-check that the registration was actually deleted
+      console.log('Double-checking deletion...');
+      const { data: checkData, error: checkError } = await supabase
+        .from('registrations')
+        .select('*')
+        .eq('id', registrationToDelete.id)
+        .single();
+      
+      if (checkError && checkError.code === 'PGRST116') {
+        console.log('✅ Confirmed: Registration successfully deleted from database');
+      } else if (checkError) {
+        console.log('❌ Error checking deletion:', checkError.message);
+      } else {
+        console.log('❌ WARNING: Registration still exists in database!');
+        console.log('Remaining registration:', checkData);
+      }
+
+      toast({
+        title: 'Success',
+        description: 'Registration deleted successfully',
+      });
+
+      setShowDeleteDialog(false);
+      setRegistrationToDelete(null);
+    } catch (error: unknown) {
+      console.error('Error deleting registration:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete registration',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -378,6 +545,8 @@ export function RegistrationsManagement() {
       registration: selectedTicket,
       eventName: selectedTicket.events?.name
     });
+    console.log('Short code in ticket object:', ticket.short_code);
+    console.log('Has short code:', !!ticket.short_code);
 
     return (
       <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
@@ -385,7 +554,7 @@ export function RegistrationsManagement() {
           <DialogHeader>
             <DialogTitle>Ticket QR Code</DialogTitle>
             <DialogDescription>
-              Scan this QR code or use the manual verification code below
+              Scan this QR code or use the short verification code below for manual entry
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center space-y-6 py-4">
@@ -422,10 +591,35 @@ export function RegistrationsManagement() {
                 <QRCodeCanvas value={ticket.qr_code} size={200} level="H" />
               )}
             </div>
-            <div className="text-center">
-              <div className="text-sm text-muted-foreground mb-2">Manual Verification Code</div>
-              <div className="font-mono text-lg bg-muted p-2 rounded select-all">
-                {ticket.qr_code}
+            <div className="text-center space-y-3">
+              {/* Short Code - Primary Display */}
+              {ticket.short_code && (
+                <>
+                  <div>
+                    <div className="text-sm text-muted-foreground mb-2">Short Verification Code</div>
+                    <div className="font-mono text-xl bg-green-50 border border-green-200 p-3 rounded-lg select-all font-bold text-green-800">
+                      {ticket.short_code}
+                    </div>
+                    <div className="text-xs text-green-600 mt-1">
+                      Use this short code for manual entry
+                    </div>
+                  </div>
+                </>
+              )}
+              
+              {/* Full Code - Secondary Display */}
+              <div>
+                <div className="text-sm text-muted-foreground mb-2">
+                  {ticket.short_code ? 'Full QR Code Data' : 'Manual Verification Code'}
+                </div>
+                <div className="font-mono text-sm bg-muted p-2 rounded select-all text-gray-600">
+                  {ticket.qr_code}
+                </div>
+                {ticket.short_code && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Full QR code data for scanning
+                  </div>
+                )}
               </div>
             </div>
             <div className="text-center text-sm text-muted-foreground">
@@ -439,6 +633,45 @@ export function RegistrationsManagement() {
     );
   };
 
+  const DeleteConfirmationDialog = () => (
+    <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete Registration</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete this registration? This action cannot be undone.
+            <br />
+            <br />
+            <strong>Participant:</strong> {registrationToDelete?.participant_name}
+            <br />
+            <strong>Email:</strong> {registrationToDelete?.participant_email}
+            <br />
+            <strong>Event:</strong> {registrationToDelete?.events?.name || 'Unknown Event'}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowDeleteDialog(false);
+              setRegistrationToDelete(null);
+            }}
+            disabled={deleting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={confirmDelete}
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (loading) {
     return <div className="flex items-center justify-center py-8">Loading registrations...</div>;
   }
@@ -450,9 +683,31 @@ export function RegistrationsManagement() {
           <h2 className="text-2xl font-bold">Registrations Management</h2>
           <p className="text-muted-foreground">Review and manage event registrations</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Users className="h-4 w-4" />
-          {filteredRegistrations.length} registrations
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Users className="h-4 w-4" />
+            {filteredRegistrations.length} registrations
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => handleDownloadRegistrations('csv')}
+              disabled={downloading}
+              variant="outline"
+              size="sm"
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              {downloading ? 'Downloading...' : 'Download CSV'}
+            </Button>
+            <Button
+              onClick={() => handleDownloadRegistrations('excel')}
+              disabled={downloading}
+              variant="outline"
+              size="sm"
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              {downloading ? 'Downloading...' : 'Download Excel'}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -532,6 +787,7 @@ export function RegistrationsManagement() {
                   <TableHead>Event</TableHead>
                   <TableHead>Registration Date</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>WhatsApp</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -556,6 +812,26 @@ export function RegistrationsManagement() {
                       <div className="flex items-center gap-2">
                         {getStatusIcon(registration.status)}
                         {getStatusBadge(registration.status)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        {registration.phone_number ? (
+                          <div className="text-sm">
+                            <span className="font-medium">📱 {registration.phone_number}</span>
+                            {typeof registration.events === 'object' && registration.events && 'whatsapp_enabled' in registration.events && (registration.events as Record<string, unknown>).whatsapp_enabled && (
+                              <div className="text-xs text-muted-foreground">
+                                {registration.tickets?.[0]?.whatsapp_sent ? (
+                                  <span className="text-green-600">✓ Sent</span>
+                                ) : (
+                                  <span className="text-orange-600">⏳ Pending</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Not provided</span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -596,6 +872,13 @@ export function RegistrationsManagement() {
                             </Button>
                           </>
                         )}
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteRegistration(registration)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -607,6 +890,7 @@ export function RegistrationsManagement() {
       </Card>
 
       <QRDialog />
+      <DeleteConfirmationDialog />
     </div>
   );
 }

@@ -1,51 +1,36 @@
+// Import necessary modules for Deno and Resend
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "npm:resend@2.0.0";
-
+import { Resend } from "npm:resend@2.0.0"; // Importing Resend from npm via Deno's npm specifier
+// Initialize Resend client with API key from environment variables
+// Ensure 'RESEND_API_KEY' is set in your Supabase project's Edge Functions settings
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
+// Define CORS headers to allow cross-origin requests
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" // Allowed headers
 };
-
-interface SendTicketEmailRequest {
-  participant_email: string;
-  participant_name: string;
-  event_name: string;
-  event_date: string;
-  event_location: string;
-  qr_code_data: string;
-  qr_image_url?: string;
-}
-
-const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
+// Main handler function for the Edge Function
+const handler = async (req)=>{
+  // Handle CORS preflight requests (OPTIONS method)
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: corsHeaders
+      headers: corsHeaders // Apply CORS headers
     });
   }
-
   try {
-    const { 
-      participant_email, 
-      participant_name, 
-      event_name, 
-      event_date, 
-      event_location, 
-      qr_code_data,
-      qr_image_url 
-    }: SendTicketEmailRequest = await req.json();
-
+    // Parse the request body to extract necessary email parameters
+    const { participant_email, participant_name, event_name, event_date, event_location, qr_code_data, qr_image_url, short_code } = await req.json();
+    // Log parameters for debugging purposes
     console.log("Starting email send process");
     console.log("Email parameters:", {
       to: participant_email,
       event: event_name,
-      has_qr_image: !!qr_image_url
+      has_qr_image: !!qr_image_url, // Check if qr_image_url is provided
+      short_code: short_code || 'not provided',
+      qr_code_data: qr_code_data ? qr_code_data.substring(0, 30) + '...' : 'not provided'
     });
-
-    // Format the date for display
+    // Format the event date for better display in the email
     const formattedDate = new Date(event_date).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -54,8 +39,7 @@ const handler = async (req: Request): Promise<Response> => {
       hour: '2-digit',
       minute: '2-digit'
     });
-
-    // Create HTML email template
+    // Create the HTML content for the email
     const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -102,7 +86,7 @@ const handler = async (req: Request): Promise<Response> => {
             
             <div class="info-row">
               <span class="info-label">🎟️ Ticket Code:</span><br>
-              <code style="background: #e9ecef; padding: 5px 10px; border-radius: 3px; font-family: monospace;">${qr_code_data}</code>
+              <code style="background: #e9ecef; padding: 5px 10px; border-radius: 3px; font-family: monospace;">${short_code || qr_code_data}</code>
             </div>
           </div>
 
@@ -135,8 +119,7 @@ const handler = async (req: Request): Promise<Response> => {
     </body>
     </html>
     `;
-
-    // Create text version
+    // Create the plain text content for the email (fallback for clients that don't render HTML)
     const textContent = `
 Event Ticket - ${event_name}
 
@@ -146,7 +129,7 @@ Thank you for registering! Here are your event details:
 
 📅 Date & Time: ${formattedDate}
 📍 Location: ${event_location}
-🎟️ Ticket Code: ${qr_code_data}
+🎟️ Ticket Code: ${short_code || qr_code_data}
 
 ${qr_image_url ? 'Your QR code ticket is attached to this email. Please show it at the event entrance.' : ''}
 
@@ -161,68 +144,61 @@ We look forward to seeing you at the event!
 ---
 This is an automated email. Please do not reply to this message.
     `;
-
     // Send email using Resend
     const emailResponse = await resend.emails.send({
-      from: "Event Registration <onboarding@resend.dev>", // Using Resend's default domain
-      to: [participant_email],
+      // IMPORTANT: Change this 'from' address to your verified domain email
+      from: "Event Registration <event@sailendra.co.id>",
+      to: [
+        participant_email
+      ],
       subject: `🎫 Your Ticket for ${event_name}`,
       html: htmlContent,
-      text: textContent,
+      text: textContent
     });
-
+    // Check for errors from Resend API
     if (emailResponse.error) {
       console.error("Resend API error:", emailResponse.error);
-      
-      // Handle specific Resend domain verification error
+      // Provide a more specific error message if it's related to domain verification
       if (emailResponse.error.message && emailResponse.error.message.includes('verify a domain')) {
         throw new Error(`Email sending failed: You need to verify a domain at resend.com/domains to send emails to other recipients. Currently, you can only send emails to your own email address.`);
       }
-      
       throw new Error(`Failed to send email: ${emailResponse.error.message || 'Unknown error'}`);
     }
-
+    // Log success and return a success response
     console.log("Email sent successfully:", emailResponse.data);
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Email sent successfully',
-        recipient: participant_email,
-        email_id: emailResponse.data?.id
-      }), 
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Email sent successfully',
+      recipient: participant_email,
+      email_id: emailResponse.data?.id
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders
       }
-    );
-  } catch (error: any) {
+    });
+  } catch (error) {
+    // Catch and handle any errors during the process
     console.error("Error in send-ticket-email function:", {
       message: error.message,
       stack: error.stack,
       name: error.name
     });
-
-    return new Response(
-      JSON.stringify({ 
-        error: error.message || 'An unknown error occurred',
-        details: {
-          name: error.name,
-          type: 'email_sending_error'
-        }
-      }),
-      {
-        status: 400,
-        headers: { 
-          "Content-Type": "application/json",
-          ...corsHeaders
-        },
+    return new Response(JSON.stringify({
+      error: error.message || 'An unknown error occurred',
+      details: {
+        name: error.name,
+        type: 'email_sending_error'
       }
-    );
+    }), {
+      status: 400,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders
+      }
+    });
   }
 };
-
+// Serve the handler function
 serve(handler);

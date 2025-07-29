@@ -21,6 +21,7 @@ export type Database = {
           created_by: string
           custom_fields: Json | null
           description: string | null
+          dresscode: string | null
           event_date: string | null
           id: string
           location: string | null
@@ -34,6 +35,7 @@ export type Database = {
           created_by: string
           custom_fields?: Json | null
           description?: string | null
+          dresscode?: string | null
           event_date?: string | null
           id?: string
           location?: string | null
@@ -47,6 +49,7 @@ export type Database = {
           created_by?: string
           custom_fields?: Json | null
           description?: string | null
+          dresscode?: string | null
           event_date?: string | null
           id?: string
           location?: string | null
@@ -135,31 +138,46 @@ export type Database = {
           id: string
           issued_at: string
           qr_code: string
+          short_code: string | null
           qr_image_url: string | null
           registration_id: string
           status: Database["public"]["Enums"]["ticket_status"]
           used_at: string | null
           used_by: string | null
+          checkin_at: string | null
+          checkin_by: string | null
+          checkin_location: string | null
+          checkin_notes: string | null
         }
         Insert: {
           id?: string
           issued_at?: string
           qr_code: string
+          short_code?: string | null
           qr_image_url?: string | null
           registration_id: string
           status?: Database["public"]["Enums"]["ticket_status"]
           used_at?: string | null
           used_by?: string | null
+          checkin_at?: string | null
+          checkin_by?: string | null
+          checkin_location?: string | null
+          checkin_notes?: string | null
         }
         Update: {
           id?: string
           issued_at?: string
           qr_code?: string
+          short_code?: string | null
           qr_image_url?: string | null
           registration_id?: string
           status?: Database["public"]["Enums"]["ticket_status"]
           used_at?: string | null
           used_by?: string | null
+          checkin_at?: string | null
+          checkin_by?: string | null
+          checkin_location?: string | null
+          checkin_notes?: string | null
         }
         Relationships: [
           {
@@ -173,12 +191,46 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      checkin_reports: {
+        Row: {
+          event_id: string
+          event_name: string
+          event_date: string | null
+          event_location: string | null
+          registration_id: string
+          participant_name: string
+          participant_email: string
+          phone_number: string | null
+          registration_status: Database["public"]["Enums"]["registration_status"]
+          registered_at: string
+          ticket_id: string | null
+          qr_code: string | null
+          short_code: string | null
+          ticket_status: Database["public"]["Enums"]["ticket_status"] | null
+          checkin_at: string | null
+          checkin_by: string | null
+          checkin_location: string | null
+          checkin_notes: string | null
+          checked_in_by_name: string | null
+          attendance_status: string
+        }
+      }
     }
     Functions: {
       is_admin: {
         Args: { user_id: string }
         Returns: boolean
+      }
+      get_checkin_stats: {
+        Args: { event_id_param?: string }
+        Returns: {
+          event_id: string
+          event_name: string
+          total_registrations: number
+          checked_in: number
+          not_checked_in: number
+          attendance_rate: number
+        }[]
       }
     }
     Enums: {

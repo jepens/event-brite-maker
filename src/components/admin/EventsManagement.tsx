@@ -15,8 +15,8 @@ interface Event {
   event_date: string;
   location: string;
   max_participants: number;
-  branding_config: any;
-  custom_fields: any[];
+  branding_config: Record<string, unknown>;
+  custom_fields: unknown[];
   created_at: string;
 }
 
@@ -39,7 +39,7 @@ export function EventsManagement() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setEvents(data as Event[] || []);
+      setEvents((data as unknown as Event[]) || []);
     } catch (error) {
       console.error('Error fetching events:', error);
       toast({
@@ -71,10 +71,10 @@ export function EventsManagement() {
       });
       
       fetchEvents();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
         variant: 'destructive',
       });
     }

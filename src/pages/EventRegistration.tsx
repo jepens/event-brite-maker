@@ -19,8 +19,9 @@ interface Event {
   event_date: string;
   location: string;
   max_participants: number;
-  branding_config: any;
-  custom_fields: any[];
+  branding_config: Record<string, unknown>;
+  custom_fields: unknown[];
+  whatsapp_enabled?: boolean;
 }
 
 const EventRegistration = () => {
@@ -62,6 +63,7 @@ const EventRegistration = () => {
     const formData = new FormData(e.currentTarget);
     const participantName = formData.get('participantName') as string;
     const participantEmail = formData.get('participantEmail') as string;
+    const participantPhone = formData.get('participantPhone') as string;
 
     // Basic validation
     if (!participantName?.trim()) {
@@ -96,10 +98,24 @@ const EventRegistration = () => {
       return;
     }
 
+    // Validate phone number if provided and WhatsApp is enabled
+    if (participantPhone?.trim() && event?.whatsapp_enabled) {
+      const phoneRegex = /^628[0-9]{8,11}$/;
+      if (!phoneRegex.test(participantPhone.trim())) {
+        toast({
+          title: 'Validation Error',
+          description: 'Please enter a valid phone number (format: 6281234567890)',
+          variant: 'destructive',
+        });
+        setSubmitting(false);
+        return;
+      }
+    }
+
     // Collect custom field data
-    const customData: Record<string, any> = {};
+    const customData: Record<string, unknown> = {};
     if (event?.custom_fields) {
-      for (const field of event.custom_fields) {
+      for (const field of event.custom_fields as Array<{ name: string; required: boolean; label: string }>) {
         const value = formData.get(field.name) as string;
         if (field.required && !value?.trim()) {
           toast({
@@ -129,6 +145,7 @@ const EventRegistration = () => {
           event_id: eventId,
           participant_name: participantName.trim(),
           participant_email: participantEmail.trim(),
+          phone_number: participantPhone?.trim() || null,
           custom_data: customData,
         })
         .select();
@@ -144,11 +161,11 @@ const EventRegistration = () => {
         title: 'Registration Successful!',
         description: 'Your registration is pending approval. You will receive an email with your ticket once approved.',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration failed:', error);
       toast({
         title: 'Registration Failed',
-        description: error.message || 'An unexpected error occurred. Please try again.',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -308,13 +325,32 @@ const EventRegistration = () => {
                   </div>
                 </div>
 
+                {/* WhatsApp Phone Number Field */}
+                {event?.whatsapp_enabled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="participantPhone" className="text-sm font-semibold text-gray-700">
+                      WhatsApp Number (Optional)
+                    </Label>
+                    <Input
+                      id="participantPhone"
+                      name="participantPhone"
+                      type="tel"
+                      placeholder="6281234567890"
+                      className="h-12 text-base border-2 border-gray-200 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Receive your ticket via WhatsApp. Format: 6281234567890
+                    </p>
+                  </div>
+                )}
+
                 {/* Dynamic Custom Fields */}
                 {event.custom_fields && event.custom_fields.length > 0 && (
                   <div className="space-y-4">
                     <div className="border-t pt-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Information</h3>
                       <div className="space-y-4">
-                        {event.custom_fields.map((field: any, index: number) => (
+                        {(event.custom_fields as Array<{ name: string; label: string; required: boolean; type: string; placeholder?: string }>).map((field, index: number) => (
                           <div key={index} className="space-y-2">
                             <Label htmlFor={field.name} className="text-sm font-semibold text-gray-700">
                               {field.label}
@@ -349,18 +385,22 @@ const EventRegistration = () => {
                 <div className="pt-6 border-t">
                   <Button 
                     type="submit" 
-                    className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5" 
+                    className={`w-full h-14 text-lg font-semibold shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 border-0 ${
+                      submitting 
+                        ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
+                        : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-xl'
+                    }`}
                     disabled={submitting}
                   >
                     {submitting ? (
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        Submitting Registration...
+                        <div className="w-5 h-5 border-2 border-gray-400 border-t-gray-600 rounded-full animate-spin"></div>
+                        <span className="font-semibold">Submitting Registration...</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <Calendar className="h-5 w-5" />
-                        Register for Event
+                        <span className="font-semibold">Register for Event</span>
                       </div>
                     )}
                   </Button>

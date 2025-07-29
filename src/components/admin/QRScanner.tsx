@@ -94,7 +94,7 @@ export function QRScanner() {
 
   const verifyTicket = async (qrCode: string) => {
     try {
-      // First, find the ticket
+      // First, find the ticket by either qr_code or short_code
       const { data: ticket, error: ticketError } = await supabase
         .from('tickets')
         .select(`
@@ -107,7 +107,7 @@ export function QRScanner() {
             )
           )
         `)
-        .eq('qr_code', qrCode)
+        .or(`qr_code.eq.${qrCode},short_code.eq.${qrCode}`)
         .single();
 
       if (ticketError || !ticket) {
@@ -132,12 +132,16 @@ export function QRScanner() {
         return;
       }
 
-      // Mark ticket as used
+      // Mark ticket as used and record check-in
       const { error: updateError } = await supabase
         .from('tickets')
         .update({
           status: 'used',
           used_at: new Date().toISOString(),
+          checkin_at: new Date().toISOString(),
+          checkin_by: (await supabase.auth.getUser()).data.user?.id,
+          checkin_location: 'QR Scanner',
+          checkin_notes: 'Checked in via QR scanner'
         })
         .eq('id', ticket.id);
 
@@ -159,17 +163,17 @@ export function QRScanner() {
         title: 'Success',
         description: 'Ticket verified and marked as used',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error verifying ticket:', error);
       setScanResult({
         success: false,
         message: 'Error verifying ticket. Please try again.',
       });
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+              toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Unknown error occurred',
+          variant: 'destructive',
+        });
     }
   };
 

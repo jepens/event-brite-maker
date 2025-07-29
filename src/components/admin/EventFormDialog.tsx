@@ -20,8 +20,10 @@ interface Event {
   event_date: string;
   location: string;
   max_participants: number;
-  branding_config: any;
-  custom_fields: any[];
+  dresscode?: string;
+  branding_config: Record<string, unknown>;
+  custom_fields: CustomField[];
+  whatsapp_enabled?: boolean;
 }
 
 interface CustomField {
@@ -50,7 +52,7 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
     if (event) {
       setCustomFields(event.custom_fields || []);
       // Set logo preview if exists
-      if (event.branding_config?.logo_url) {
+      if (event.branding_config?.logo_url && typeof event.branding_config.logo_url === 'string') {
         setLogoPreview(event.branding_config.logo_url);
       }
     } else {
@@ -113,6 +115,7 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
       const eventDate = formData.get('eventDate') as string;
       const location = formData.get('location') as string;
       const maxParticipants = parseInt(formData.get('maxParticipants') as string);
+      const dresscode = formData.get('dresscode') as string;
       const primaryColor = formData.get('primaryColor') as string;
 
       // Validate required fields
@@ -141,11 +144,13 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
         event_date: eventDate ? new Date(eventDate).toISOString() : null,
         location: location?.trim() || '',
         max_participants: maxParticipants || 1000,
+        dresscode: dresscode?.trim() || null,
         branding_config: {
           primaryColor: primaryColor || '#000000',
           logo_url: logoUrl
-        } as any,
-        custom_fields: customFields as any,
+        } as Record<string, unknown>,
+        custom_fields: customFields as CustomField[],
+        whatsapp_enabled: formData.get('whatsappEnabled') === 'on',
       };
 
       if (event) {
@@ -180,11 +185,11 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
 
       onSuccess();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving event:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to save event',
+        description: error instanceof Error ? error.message : 'Failed to save event',
         variant: 'destructive',
       });
     } finally {
@@ -290,6 +295,31 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
                   placeholder="Enter event location"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dresscode">Dresscode</Label>
+                <Input
+                  id="dresscode"
+                  name="dresscode"
+                  defaultValue={event?.dresscode || ''}
+                  placeholder="e.g., Smart Casual, Formal, Traditional / Batik"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to use automatic dresscode based on event time
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="whatsappEnabled"
+                  name="whatsappEnabled"
+                  defaultChecked={event?.whatsapp_enabled || false}
+                />
+                <Label htmlFor="whatsappEnabled">Enable WhatsApp Ticket Delivery</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                When enabled, participants can provide their WhatsApp number to receive tickets via WhatsApp.
+              </p>
             </CardContent>
           </Card>
 
@@ -305,7 +335,7 @@ export function EventFormDialog({ open, onOpenChange, event, onSuccess }: EventF
                   id="primaryColor"
                   name="primaryColor"
                   type="color"
-                  defaultValue={event?.branding_config?.primaryColor || '#000000'}
+                  defaultValue={(event?.branding_config?.primaryColor as string) || '#000000'}
                 />
               </div>
 

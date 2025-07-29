@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.generate-qr-ticket]
 verify_jwt = false
+
+[functions.send-whatsapp-ticket]
+verify_jwt = false

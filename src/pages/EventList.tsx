@@ -15,13 +15,13 @@ interface Event {
   event_date: string;
   location: string;
   max_participants: number;
-  branding_config: any;
+  branding_config: Record<string, unknown>;
 }
 
 const EventCard = ({ event }: { event: Event }) => (
   <Card className="hover:shadow-lg transition-shadow h-[400px]">
     <CardHeader>
-      {event.branding_config?.headerImage && (
+      {event.branding_config?.headerImage && typeof event.branding_config.headerImage === 'string' && (
         <img
           src={event.branding_config.headerImage}
           alt={event.name}

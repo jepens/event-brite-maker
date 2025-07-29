@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: {
       '/rest/v1': {
-        target: 'https://mjolfjoqfnszvvlbzhjn.supabase.co',
+        target: process.env.VITE_SUPABASE_URL || 'http://localhost:54321',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/rest\/v1/, '/rest/v1'),
         configure: (proxy, _options) => {
@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => ({
         },
       },
       '/auth/v1': {
-        target: 'https://mjolfjoqfnszvvlbzhjn.supabase.co',
+        target: process.env.VITE_SUPABASE_URL || 'http://localhost:54321',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/auth\/v1/, '/auth/v1'),
         configure: (proxy, _options) => {
