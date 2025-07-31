@@ -92,106 +92,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('Making Supabase query for profile...');
       
-      // Test connection first
-      console.log('Testing Supabase connection before query...');
-      try {
-        const connectionTestPromise = supabase
-          .from('profiles')
-          .select('count')
-          .limit(1);
-        
-        const connectionTimeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => {
-            console.log('Connection test timeout reached after 3 seconds');
-            reject(new Error('Connection test timeout after 3 seconds'));
-          }, 3000);
-        });
-        
-        const { data: testData, error: testError } = await Promise.race([connectionTestPromise, connectionTimeoutPromise]) as { data: unknown; error: unknown };
-        
-        if (testError) {
-          console.error('Supabase connection test failed:', testError);
-          console.log('Connection test failed, setting default profile immediately');
-          return {
-            user_id: userId,
-            full_name: 'Unknown User',
-            email: 'unknown@example.com',
-            role: 'user'
-          };
-        }
-        console.log('Supabase connection test successful');
-      } catch (connectionError) {
-        console.error('Supabase connection test error:', connectionError);
-        console.log('Connection test error, setting default profile immediately');
-        return {
-          user_id: userId,
-          full_name: 'Unknown User',
-          email: 'unknown@example.com',
-          role: 'user'
-        };
-      }
-      
-      // Add timeout wrapper to prevent hanging
-      const queryPromise = supabase
+      // Direct query without connection test
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
 
-      console.log('Query promise created, setting up timeout...');
-      
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          console.log('Query timeout reached after 5 seconds');
-          reject(new Error('Profile fetch timeout after 5 seconds'));
-        }, 5000);
-      });
+      console.log('Supabase query completed:', { data, error });
 
-      console.log('Starting Promise.race between query and timeout...');
-      try {
-        const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as { data: unknown; error: unknown };
-        console.log('Supabase query completed:', { data, error });
-
-        if (error) {
-          console.error('Profile fetch error:', error);
-          
-          // If it's a timeout error, set a default profile
-          if (error instanceof Error && error.message.includes('timeout')) {
-            console.log('Query timeout detected, setting default profile');
-            return {
-              user_id: userId,
-              full_name: 'Unknown User',
-              email: 'unknown@example.com',
-              role: 'user'
-            } as Record<string, unknown>;
-          }
-          
-          throw error;
-        }
-
-        if (!data) {
-          console.error('No profile data found');
-          throw new Error('No profile data found');
-        }
-
-        console.log('Profile fetched successfully:', data);
-        profileFetchAttempts.current = 0; // Reset attempts on success
-        
-        // Don't set profile here, let the caller handle it
-        return data as Record<string, unknown>;
-      } catch (raceError) {
-        console.error('Promise.race error:', raceError);
-        if (raceError instanceof Error && raceError.message.includes('timeout')) {
-          console.log('Query timeout detected, setting default profile');
-          return {
-            user_id: userId,
-            full_name: 'Unknown User',
-            email: 'unknown@example.com',
-            role: 'user'
-          };
-        }
-        throw raceError;
+      if (error) {
+        console.error('Profile fetch error:', error);
+        throw error;
       }
+
+      if (!data) {
+        console.error('No profile data found');
+        throw new Error('No profile data found');
+      }
+
+      console.log('Profile fetched successfully:', data);
+      profileFetchAttempts.current = 0; // Reset attempts on success
+      
+      // Don't set profile here, let the caller handle it
+      return data as Record<string, unknown>;
     } catch (error) {
       console.error(`Profile fetch failed (attempt ${profileFetchAttempts.current}):`, error);
       throw error;
