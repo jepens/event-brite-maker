@@ -4,12 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Camera, CameraOff, CheckCircle, XCircle, Scan, Wifi, WifiOff, Download, Upload } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Camera, CameraOff, CheckCircle, XCircle, Scan, Wifi, WifiOff, Download, Upload, Usb } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { offlineManager, OfflineCheckinData } from '@/lib/offline-manager';
 import { usePWA } from '@/hooks/usePWA';
 import QrScanner from 'qr-scanner';
+import { USBScanner } from './USBScanner';
 
 interface ScanResult {
   success: boolean;
@@ -28,6 +30,7 @@ export function OfflineQRScanner() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [syncStatus, setSyncStatus] = useState({ total: 0, synced: 0, unsynced: 0 });
+  const [usbConnected, setUsbConnected] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const qrScannerRef = useRef<QrScanner | null>(null);
   
@@ -393,78 +396,103 @@ export function OfflineQRScanner() {
         </Card>
       )}
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Camera Scanner */}
-        <Card className="mobile-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Camera className="h-5 w-5" />
-              Camera Scanner
-            </CardTitle>
-            <CardDescription>
-              Use your device camera to scan QR codes
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="relative qr-scanner">
-              <video
-                ref={videoRef}
-                className="w-full h-64 bg-gray-100 rounded-lg object-cover"
-                style={{ display: scanning ? 'block' : 'none' }}
-              />
-              {!scanning && (
-                <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <Scan className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-                    <p className="text-gray-500">Click "Start Scanner" to begin</p>
+      <Tabs defaultValue="camera" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="camera" className="flex items-center gap-2">
+            <Camera className="h-4 w-4" />
+            Camera
+          </TabsTrigger>
+          <TabsTrigger value="usb" className="flex items-center gap-2">
+            <Usb className="h-4 w-4" />
+            USB Scanner
+          </TabsTrigger>
+          <TabsTrigger value="manual" className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" />
+            Manual
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="camera" className="space-y-4">
+          <Card className="mobile-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Camera Scanner
+              </CardTitle>
+              <CardDescription>
+                Use your device camera to scan QR codes
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative qr-scanner">
+                <video
+                  ref={videoRef}
+                  className="w-full h-64 bg-gray-100 rounded-lg object-cover"
+                  style={{ display: scanning ? 'block' : 'none' }}
+                />
+                {!scanning && (
+                  <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <div className="text-center">
+                      <Scan className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                      <p className="text-gray-500">Click "Start Scanner" to begin</p>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            <div className="flex gap-2">
-              {!scanning ? (
-                <Button onClick={startScanning} className="flex-1 mobile-button">
-                  <Camera className="h-4 w-4 mr-2" />
-                  Start Scanner
-                </Button>
-              ) : (
-                <Button onClick={stopScanning} variant="outline" className="flex-1 mobile-button">
-                  <CameraOff className="h-4 w-4 mr-2" />
-                  Stop Scanner
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              <div className="flex gap-2">
+                {!scanning ? (
+                  <Button onClick={startScanning} className="flex-1 mobile-button">
+                    <Camera className="h-4 w-4 mr-2" />
+                    Start Scanner
+                  </Button>
+                ) : (
+                  <Button onClick={stopScanning} variant="outline" className="flex-1 mobile-button">
+                    <CameraOff className="h-4 w-4 mr-2" />
+                    Stop Scanner
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        {/* Manual Entry */}
-        <Card className="mobile-card">
-          <CardHeader>
-            <CardTitle>Manual Verification</CardTitle>
-            <CardDescription>
-              Enter QR code manually for verification
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="manualCode">QR Code</Label>
-              <Input
-                id="manualCode"
-                value={manualCode}
-                onChange={(e) => setManualCode(e.target.value)}
-                placeholder="Enter QR code here"
-                className="mobile-input"
-              />
-            </div>
+        <TabsContent value="usb" className="space-y-4">
+          <USBScanner 
+            onScanResult={handleScanResult}
+            isConnected={usbConnected}
+            onConnectionChange={setUsbConnected}
+          />
+        </TabsContent>
 
-            <Button onClick={handleManualVerification} className="w-full mobile-button">
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Verify Ticket
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+        <TabsContent value="manual" className="space-y-4">
+          <Card className="mobile-card">
+            <CardHeader>
+              <CardTitle>Manual Verification</CardTitle>
+              <CardDescription>
+                Enter QR code manually for verification
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="manualCode">QR Code</Label>
+                <Input
+                  id="manualCode"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  placeholder="Enter QR code here"
+                  className="mobile-input"
+                />
+              </div>
+
+              <Button onClick={handleManualVerification} className="w-full mobile-button">
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Verify Ticket
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Scan Result */}
       {scanResult && (

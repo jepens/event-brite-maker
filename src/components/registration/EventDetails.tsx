@@ -1,9 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, MapPin, Users, Clock, Tag } from 'lucide-react';
-import { format } from 'date-fns';
 import { Event } from './types';
 import { useMobile } from '@/hooks/use-mobile';
+import { formatDateForDisplay, formatTimeForDisplay } from '@/lib/date-utils';
 interface EventDetailsProps {
   event: Event;
   currentCount?: number;
@@ -63,11 +63,11 @@ export function EventDetails({ event, currentCount, isFull }: EventDetailsProps)
               <div className="space-y-1">
                 <h3 className="font-semibold text-gray-900">Date & Time</h3>
                 <p className="text-lg font-medium text-blue-900">
-                  {format(new Date(event.event_date), 'EEEE, MMMM d, yyyy')}
+                  {formatDateForDisplay(event.event_date)}
                 </p>
                 <p className="text-sm text-blue-700 flex items-center gap-1">
                   <Clock className="h-4 w-4" />
-                  {format(new Date(event.event_date), 'h:mm a')}
+                  {formatTimeForDisplay(event.event_date)}
                 </p>
               </div>
             </div>

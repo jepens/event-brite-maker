@@ -3,9 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, MapPin, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
 import { Event } from './types';
 import { useMobile } from '@/hooks/use-mobile';
+import { formatDateForDisplay } from '@/lib/date-utils';
 
 interface EventCardProps {
   event: Event;
@@ -35,7 +35,7 @@ export function EventCard({ event, currentCount, isFull }: EventCardProps) {
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="h-4 w-4" />
-          {event.event_date ? format(new Date(event.event_date), 'PPP') : 'Date TBA'}
+          {event.event_date ? formatDateForDisplay(event.event_date) : 'Date TBA'}
         </div>
         
         {event.location && (

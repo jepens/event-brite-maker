@@ -30,14 +30,18 @@ const handler = async (req)=>{
       short_code: short_code || 'not provided',
       qr_code_data: qr_code_data ? qr_code_data.substring(0, 30) + '...' : 'not provided'
     });
-    // Format the event date for better display in the email
-    const formattedDate = new Date(event_date).toLocaleDateString('en-US', {
+    // Format the event date for better display in the email (WIB timezone)
+    const eventDate = new Date(event_date);
+    const wibDate = new Date(eventDate.getTime() + (7 * 60 * 60 * 1000));
+    
+    const formattedDate = wibDate.toLocaleDateString('id-ID', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta'
     });
     // Create the HTML content for the email
     const htmlContent = `

@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Event } from './types';
+import { formatDateForInput } from '@/lib/date-utils';
 
 interface EventFormProps {
   event: Event | null;
@@ -57,7 +58,7 @@ export function EventForm({ event, submitting, onSubmit }: EventFormProps) {
                 id="event_date"
                 name="event_date"
                 type="datetime-local"
-                defaultValue={event?.event_date ? event.event_date.slice(0, 16) : ''}
+                defaultValue={event?.event_date ? formatDateForInput(event.event_date) : ''}
                 required
               />
             </div>

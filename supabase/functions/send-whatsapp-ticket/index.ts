@@ -36,37 +36,49 @@ function validatePhoneNumber(phone) {
 }
 function formatDate(date, format, useShort) {
   const eventDate = new Date(date);
+  
+  // Ensure we're working with WIB timezone (UTC+7)
+  const wibDate = new Date(eventDate.getTime() + (7 * 60 * 60 * 1000));
+  
   if (useShort) {
     // Format pendek: "25 Jan 2024" (tanpa waktu)
-    return eventDate.toLocaleDateString('id-ID', {
+    return wibDate.toLocaleDateString('id-ID', {
       day: 'numeric',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta'
     });
   }
   if (format === 'DD/MM/YYYY HH:mm') {
     // Format: "25/01/2024 19:00" (dengan waktu untuk format khusus)
-    return eventDate.toLocaleDateString('id-ID', {
+    return wibDate.toLocaleDateString('id-ID', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta'
     }).replace(/\//g, '/');
   }
   // Format default: "Jumat, 8 Agustus 2025" (tanpa waktu)
-  return eventDate.toLocaleDateString('id-ID', {
+  return wibDate.toLocaleDateString('id-ID', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
+    timeZone: 'Asia/Jakarta'
   });
 }
 function formatTime(date) {
   const eventDate = new Date(date);
-  return eventDate.toLocaleTimeString('id-ID', {
+  
+  // Ensure we're working with WIB timezone (UTC+7)
+  const wibDate = new Date(eventDate.getTime() + (7 * 60 * 60 * 1000));
+  
+  return wibDate.toLocaleTimeString('id-ID', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta'
   });
 }
 function getDresscode(eventData) {
