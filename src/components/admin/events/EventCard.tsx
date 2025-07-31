@@ -2,10 +2,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Edit, Trash2, Calendar, MapPin, Users, Share2, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
 import { Event } from './types';
 import { copyToClipboard } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { formatDateForDisplay, formatTimeForDisplay24 } from '@/lib/date-utils';
 
 interface EventCardProps {
   event: Event;
@@ -62,7 +62,7 @@ export function EventCard({ event, onEdit, onDelete }: EventCardProps) {
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Calendar className="h-4 w-4" />
             <span>
-              {event.event_date ? format(new Date(event.event_date), 'PPP') : 'Date TBA'}
+              {event.event_date ? `${formatDateForDisplay(event.event_date)} ${formatTimeForDisplay24(event.event_date)}` : 'Date TBA'}
             </span>
           </div>
           

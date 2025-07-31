@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, MapPin, Users, Clock, Tag } from 'lucide-react';
 import { Event } from './types';
 import { useMobile } from '@/hooks/use-mobile';
-import { formatDateForDisplay, formatTimeForDisplay } from '@/lib/date-utils';
+import { formatDateForDisplay, formatTimeForDisplay24 } from '@/lib/date-utils';
 interface EventDetailsProps {
   event: Event;
   currentCount?: number;
@@ -67,7 +67,7 @@ export function EventDetails({ event, currentCount, isFull }: EventDetailsProps)
                 </p>
                 <p className="text-sm text-blue-700 flex items-center gap-1">
                   <Clock className="h-4 w-4" />
-                  {formatTimeForDisplay(event.event_date)}
+                  {formatTimeForDisplay24(event.event_date)}
                 </p>
               </div>
             </div>

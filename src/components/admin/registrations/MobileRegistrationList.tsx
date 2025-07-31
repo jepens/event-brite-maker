@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Filter, Download } from 'lucide-react';
-import { format } from 'date-fns';
 
 interface MobileRegistrationListProps {
   registrations: Registration[];

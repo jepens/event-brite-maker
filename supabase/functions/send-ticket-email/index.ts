@@ -32,9 +32,12 @@ const handler = async (req)=>{
     });
     // Format the event date for better display in the email (WIB timezone)
     const eventDate = new Date(event_date);
-    const wibDate = new Date(eventDate.getTime() + (7 * 60 * 60 * 1000));
     
-    const formattedDate = wibDate.toLocaleDateString('id-ID', {
+    // Jika tanggal sudah dalam format ISO dengan timezone, gunakan langsung
+    // Jika tidak, asumsikan sudah dalam WIB timezone
+    const dateToFormat = eventDate;
+    
+    const formattedDate = dateToFormat.toLocaleDateString('id-ID', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',

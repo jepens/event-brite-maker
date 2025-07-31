@@ -19,6 +19,13 @@ export function parseDateWithTimezone(dateString: string, timezone: string = DEF
       return parseISO(dateString);
     }
     
+    // Jika format datetime-local (YYYY-MM-DDTHH:mm), asumsikan WIB timezone
+    if (dateString.includes('T') && !dateString.includes('Z') && !dateString.includes('+')) {
+      // Tambahkan timezone WIB (+07:00) ke string
+      const dateWithTimezone = dateString + '+07:00';
+      return parseISO(dateWithTimezone);
+    }
+    
     // Jika tidak ada timezone info, asumsikan WIB
     const date = new Date(dateString);
     if (isNaN(date.getTime())) {
@@ -45,7 +52,7 @@ export function formatDateForDisplay(dateString: string, formatString: string = 
 }
 
 /**
- * Format waktu untuk display di UI
+ * Format waktu untuk display di UI (12 jam format - AM/PM)
  */
 export function formatTimeForDisplay(dateString: string, formatString: string = 'h:mm a'): string {
   try {
@@ -58,12 +65,25 @@ export function formatTimeForDisplay(dateString: string, formatString: string = 
 }
 
 /**
- * Format tanggal dan waktu lengkap untuk display
+ * Format waktu untuk display di UI (24 jam format)
+ */
+export function formatTimeForDisplay24(dateString: string, formatString: string = 'HH:mm'): string {
+  try {
+    const date = parseDateWithTimezone(dateString);
+    return format(date, formatString, { locale: id });
+  } catch (error) {
+    console.error('Error formatting time for display (24h):', error);
+    return 'Invalid Time';
+  }
+}
+
+/**
+ * Format tanggal dan waktu lengkap untuk display (24 jam format)
  */
 export function formatDateTimeForDisplay(dateString: string): string {
   try {
     const date = parseDateWithTimezone(dateString);
-    return format(date, 'EEEE, MMMM d, yyyy h:mm a', { locale: id });
+    return format(date, 'EEEE, MMMM d, yyyy HH:mm', { locale: id });
   } catch (error) {
     console.error('Error formatting datetime for display:', error);
     return 'Invalid Date';
@@ -71,15 +91,44 @@ export function formatDateTimeForDisplay(dateString: string): string {
 }
 
 /**
- * Format tanggal untuk input datetime-local (tanpa timezone)
+ * Format tanggal untuk input datetime-local (dengan timezone WIB)
  */
 export function formatDateForInput(dateString: string): string {
   try {
     const date = parseDateWithTimezone(dateString);
-    // Format untuk input datetime-local: YYYY-MM-DDTHH:mm
-    return format(date, "yyyy-MM-dd'T'HH:mm");
+    // Convert ke WIB timezone untuk input datetime-local
+    return formatInTimeZone(date, DEFAULT_TIMEZONE, "yyyy-MM-dd'T'HH:mm");
   } catch (error) {
     console.error('Error formatting date for input:', error);
+    return '';
+  }
+}
+
+/**
+ * Convert input datetime-local ke ISO string dengan timezone WIB
+ */
+export function convertInputToISO(dateTimeLocal: string): string {
+  try {
+    // Input dari datetime-local adalah dalam timezone lokal browser
+    // Kita perlu mengkonversi ke WIB timezone
+    const localDate = new Date(dateTimeLocal);
+    
+    // Dapatkan offset timezone lokal dalam menit
+    const localOffset = localDate.getTimezoneOffset();
+    
+    // WIB offset adalah -420 menit (UTC+7)
+    const wibOffset = -420;
+    
+    // Hitung perbedaan offset
+    const offsetDiff = localOffset - wibOffset;
+    
+    // Aplikasikan perbedaan offset
+    const wibDate = new Date(localDate.getTime() + (offsetDiff * 60 * 1000));
+    
+    // Return dalam format ISO dengan timezone WIB
+    return formatInTimeZone(wibDate, DEFAULT_TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
+  } catch (error) {
+    console.error('Error converting input to ISO:', error);
     return '';
   }
 }
@@ -132,12 +181,12 @@ export function formatTimeForWhatsApp(dateString: string): string {
 }
 
 /**
- * Format tanggal untuk email
+ * Format tanggal untuk email (24 jam format)
  */
 export function formatDateForEmail(dateString: string): string {
   try {
     const date = parseDateWithTimezone(dateString);
-    return format(date, 'EEEE, MMMM d, yyyy h:mm a', { locale: id });
+    return format(date, 'EEEE, MMMM d, yyyy HH:mm', { locale: id });
   } catch (error) {
     console.error('Error formatting date for email:', error);
     return 'Invalid Date';

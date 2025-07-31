@@ -5,13 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Camera, CameraOff, CheckCircle, XCircle, Scan, Wifi, WifiOff, Download, Upload, Usb } from 'lucide-react';
+import { CheckCircle, XCircle, Wifi, WifiOff, Download, Upload, Usb } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { offlineManager, OfflineCheckinData } from '@/lib/offline-manager';
 import { usePWA } from '@/hooks/usePWA';
-import QrScanner from 'qr-scanner';
 import { USBScanner } from './USBScanner';
+import { formatDateTimeForDisplay } from '@/lib/date-utils';
 
 interface ScanResult {
   success: boolean;
@@ -26,13 +26,10 @@ interface ScanResult {
 }
 
 export function OfflineQRScanner() {
-  const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [syncStatus, setSyncStatus] = useState({ total: 0, synced: 0, unsynced: 0 });
   const [usbConnected, setUsbConnected] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const qrScannerRef = useRef<QrScanner | null>(null);
   
   const { isOnline } = usePWA();
 
@@ -45,9 +42,6 @@ export function OfflineQRScanner() {
     
     return () => {
       clearInterval(interval);
-      if (qrScannerRef.current) {
-        qrScannerRef.current.destroy();
-      }
     };
   }, []);
 
@@ -60,47 +54,7 @@ export function OfflineQRScanner() {
     }
   };
 
-  const startScanning = async () => {
-    if (!videoRef.current) return;
-
-    try {
-      setScanResult(null);
-      setScanning(true);
-
-      qrScannerRef.current = new QrScanner(
-        videoRef.current,
-        (result: QrScanner.ScanResult) => {
-          handleScanResult(result.data);
-        },
-        {
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
-        }
-      );
-
-      await qrScannerRef.current.start();
-    } catch (error) {
-      console.error('Error starting QR scanner:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to start camera. Please check camera permissions.',
-        variant: 'destructive',
-      });
-      setScanning(false);
-    }
-  };
-
-  const stopScanning = () => {
-    if (qrScannerRef.current) {
-      qrScannerRef.current.stop();
-      qrScannerRef.current.destroy();
-      qrScannerRef.current = null;
-    }
-    setScanning(false);
-  };
-
   const handleScanResult = async (qrCode: string) => {
-    stopScanning();
     await verifyTicket(qrCode);
   };
 
@@ -195,7 +149,7 @@ export function OfflineQRScanner() {
     if (ticket.status === 'used' || ticket.checkin_at) {
       setScanResult({
         success: false,
-        message: `Ticket already checked in at: ${ticket.checkin_at ? new Date(ticket.checkin_at).toLocaleString('id-ID') : 'Unknown time'}`,
+        message: `Ticket already checked in at: ${ticket.checkin_at ? formatDateTimeForDisplay(ticket.checkin_at) : 'Unknown time'}`,
         participant: {
           name: registration.participant_name,
           email: registration.participant_email,
@@ -396,68 +350,19 @@ export function OfflineQRScanner() {
         </Card>
       )}
 
-      <Tabs defaultValue="camera" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="camera" className="flex items-center gap-2">
-            <Camera className="h-4 w-4" />
-            Camera
-          </TabsTrigger>
-          <TabsTrigger value="usb" className="flex items-center gap-2">
+      <Tabs defaultValue="scanner" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="scanner" className="flex items-center gap-2">
             <Usb className="h-4 w-4" />
-            USB Scanner
+            Scanner
           </TabsTrigger>
           <TabsTrigger value="manual" className="flex items-center gap-2">
             <CheckCircle className="h-4 w-4" />
-            Manual
+            Manual Verification
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="camera" className="space-y-4">
-          <Card className="mobile-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Camera className="h-5 w-5" />
-                Camera Scanner
-              </CardTitle>
-              <CardDescription>
-                Use your device camera to scan QR codes
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="relative qr-scanner">
-                <video
-                  ref={videoRef}
-                  className="w-full h-64 bg-gray-100 rounded-lg object-cover"
-                  style={{ display: scanning ? 'block' : 'none' }}
-                />
-                {!scanning && (
-                  <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <Scan className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-                      <p className="text-gray-500">Click "Start Scanner" to begin</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-2">
-                {!scanning ? (
-                  <Button onClick={startScanning} className="flex-1 mobile-button">
-                    <Camera className="h-4 w-4 mr-2" />
-                    Start Scanner
-                  </Button>
-                ) : (
-                  <Button onClick={stopScanning} variant="outline" className="flex-1 mobile-button">
-                    <CameraOff className="h-4 w-4 mr-2" />
-                    Stop Scanner
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="usb" className="space-y-4">
+        <TabsContent value="scanner" className="space-y-4">
           <USBScanner 
             onScanResult={handleScanResult}
             isConnected={usbConnected}

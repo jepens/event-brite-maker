@@ -23,7 +23,7 @@ export function useRegistrations() {
       setLoading(true);
       console.log('Fetching registrations...');
       
-      // First, get all registrations
+      // First, get all registrations with selective fields
       const { data: registrationsData, error: registrationsError } = await supabase
         .from('registrations')
         .select(`
@@ -33,12 +33,10 @@ export function useRegistrations() {
           phone_number,
           status,
           registered_at,
-          custom_data,
           event_id,
           events (
             id,
-            name,
-            whatsapp_enabled
+            name
           )
         `)
         .order('registered_at', { ascending: false });
@@ -60,7 +58,14 @@ export function useRegistrations() {
         (registrationsData || []).map(async (registration) => {
           const { data: ticketsData, error: ticketsError } = await supabase
             .from('tickets')
-            .select('*')
+            .select(`
+              id,
+              qr_code,
+              short_code,
+              status,
+              checkin_at,
+              checkin_location
+            `)
             .eq('registration_id', registration.id);
 
           if (ticketsError) {

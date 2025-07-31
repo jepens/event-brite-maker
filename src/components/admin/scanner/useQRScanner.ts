@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import QrScanner from 'qr-scanner';
 import { ScanResult } from './types';
+import { useCache } from '@/lib/cache-manager';
 
 export function useQRScanner() {
   const [scanning, setScanning] = useState(false);
@@ -10,6 +11,7 @@ export function useQRScanner() {
   const [manualCode, setManualCode] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const qrScannerRef = useRef<QrScanner | null>(null);
+  const { invalidatePattern } = useCache();
 
   useEffect(() => {
     return () => {
@@ -79,100 +81,67 @@ export function useQRScanner() {
 
   const verifyTicket = async (qrCode: string) => {
     try {
-      // First, find the ticket by either qr_code or short_code
-      const { data: ticket, error: ticketError } = await supabase
-        .from('tickets')
-        .select(`
-          id,
-          qr_code,
-          short_code,
-          status,
-          checkin_at,
-          registrations (
-            id,
-            participant_name,
-            participant_email,
-            events (
-              id,
-              name
-            )
-          )
-        `)
-        .or(`qr_code.eq.${qrCode},short_code.eq.${qrCode}`)
-        .single();
+      // Use optimized RPC function to combine ticket lookup and status update
+      // This reduces API requests from 2 to 1
+      const { data, error } = await supabase
+        .rpc('checkin_ticket', {
+          qr_code_param: qrCode,
+          checkin_location_param: 'QR Scanner',
+          checkin_notes_param: 'Checked in via QR scanner'
+        });
 
-      if (ticketError) {
-        if (ticketError.code === 'PGRST116') {
-          setScanResult({
-            success: false,
-            message: 'Invalid QR code. Ticket not found.',
-          });
-        } else {
-          throw ticketError;
-        }
-        return;
-      }
-
-      if (!ticket) {
+      if (error) {
+        console.error('RPC error:', error);
         setScanResult({
           success: false,
-          message: 'Invalid QR code. Ticket not found.',
+          message: 'Error processing check-in. Please try again.',
         });
         return;
       }
 
-      const registration = ticket.registrations as unknown as {
-        participant_name: string;
-        participant_email: string;
-        events?: { name: string };
+      const result = data as {
+        success: boolean;
+        message: string;
+        error?: string;
+        ticket?: {
+          id: string;
+          qr_code: string;
+          short_code: string;
+          status: string;
+          checkin_at: string;
+        };
+        participant?: {
+          name: string;
+          email: string;
+        };
+        event?: {
+          name: string;
+          date: string;
+          location: string;
+        };
       };
-      if (!registration) {
+
+      if (!result.success) {
         setScanResult({
           success: false,
-          message: 'Ticket found but no registration associated.',
+          message: result.error || 'Check-in failed',
         });
         return;
-      }
-
-      // Check if ticket is already used or has been checked in
-      if (ticket.status === 'used' || ticket.checkin_at) {
-        setScanResult({
-          success: false,
-          message: `Ticket has already been used. Checked in at: ${ticket.checkin_at ? new Date(ticket.checkin_at).toLocaleString('id-ID') : 'Unknown time'}`,
-          participant: {
-            name: registration.participant_name,
-            email: registration.participant_email,
-            event_name: registration.events?.name || 'Unknown Event',
-          },
-        });
-        return;
-      }
-
-      // Mark ticket as used and record check-in details
-      const { error: updateError } = await supabase
-        .from('tickets')
-        .update({
-          status: 'used',
-          checkin_at: new Date().toISOString(),
-          checkin_by: (await supabase.auth.getUser()).data.user?.id,
-          checkin_location: 'QR Scanner',
-          checkin_notes: 'Checked in via QR scanner'
-        })
-        .eq('id', ticket.id);
-
-      if (updateError) {
-        throw updateError;
       }
 
       setScanResult({
         success: true,
         message: 'Check-in successful!',
         participant: {
-          name: registration.participant_name,
-          email: registration.participant_email,
-          event_name: registration.events?.name || 'Unknown Event',
+          name: result.participant?.name || 'Unknown',
+          email: result.participant?.email || 'Unknown',
+          event_name: result.event?.name || 'Unknown Event',
         },
       });
+
+      // Invalidate related caches after successful check-in
+      invalidatePattern('checkin_stats');
+      invalidatePattern('checkin_reports');
 
       toast({
         title: 'Success',

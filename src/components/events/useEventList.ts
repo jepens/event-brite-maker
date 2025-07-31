@@ -32,7 +32,7 @@ export function useEventList() {
   useEffect(() => {
     const cachedEvents = getCache<Event[]>(CACHE_KEYS.EVENTS, {
       version: CACHE_VERSIONS.EVENTS,
-      ttl: 10 * 60 * 1000 // 10 minutes for events
+      ttl: 30 * 60 * 1000 // 30 minutes for events (increased from 10)
     });
 
     if (cachedEvents && cachedEvents.length > 0) {
@@ -46,7 +46,7 @@ export function useEventList() {
     if (events && events.length > 0 && !loading && !error) {
       setCache(CACHE_KEYS.EVENTS, events, {
         version: CACHE_VERSIONS.EVENTS,
-        ttl: 10 * 60 * 1000 // 10 minutes
+        ttl: 30 * 60 * 1000 // 30 minutes (increased from 10)
       });
     }
   }, [events, loading, error, setCache]);

@@ -85,8 +85,8 @@ const handler = async (req) => {
     // Generate unique short code for manual verification (8 characters)
     const shortCode = generateShortCode();
     
-    // Generate unique QR code data (full length for QR image, short code for manual entry)
-    const qrData = `TICKET:${registration_id}:${Date.now()}`;
+    // Generate optimized QR code data using short code only (no prefix)
+    const qrData = shortCode;
 
     // Generate QR code image as a Data URL
     const qrOptions = {

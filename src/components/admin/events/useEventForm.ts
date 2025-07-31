@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Event, CustomField } from './types';
+import { convertInputToISO } from '@/lib/date-utils';
 
 export function useEventForm(event: Event | null, onSuccess: () => void) {
   const { user } = useAuth();
@@ -188,10 +189,13 @@ export function useEventForm(event: Event | null, onSuccess: () => void) {
         field.name.trim() && field.label.trim()
       );
 
+      // Convert event_date dari datetime-local ke ISO dengan timezone WIB
+      const eventDateISO = convertInputToISO(event_date);
+      
       const eventData = {
         name: name.trim(),
         description: description.trim(),
-        event_date,
+        event_date: eventDateISO,
         location: location.trim(),
         max_participants,
         dresscode: dresscode?.trim() || null,

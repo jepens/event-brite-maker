@@ -37,12 +37,13 @@ function validatePhoneNumber(phone) {
 function formatDate(date, format, useShort) {
   const eventDate = new Date(date);
   
-  // Ensure we're working with WIB timezone (UTC+7)
-  const wibDate = new Date(eventDate.getTime() + (7 * 60 * 60 * 1000));
+  // Jika tanggal sudah dalam format ISO dengan timezone, gunakan langsung
+  // Jika tidak, asumsikan sudah dalam WIB timezone
+  const dateToFormat = eventDate;
   
   if (useShort) {
     // Format pendek: "25 Jan 2024" (tanpa waktu)
-    return wibDate.toLocaleDateString('id-ID', {
+    return dateToFormat.toLocaleDateString('id-ID', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -51,7 +52,7 @@ function formatDate(date, format, useShort) {
   }
   if (format === 'DD/MM/YYYY HH:mm') {
     // Format: "25/01/2024 19:00" (dengan waktu untuk format khusus)
-    return wibDate.toLocaleDateString('id-ID', {
+    return dateToFormat.toLocaleDateString('id-ID', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -61,7 +62,7 @@ function formatDate(date, format, useShort) {
     }).replace(/\//g, '/');
   }
   // Format default: "Jumat, 8 Agustus 2025" (tanpa waktu)
-  return wibDate.toLocaleDateString('id-ID', {
+  return dateToFormat.toLocaleDateString('id-ID', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -72,10 +73,11 @@ function formatDate(date, format, useShort) {
 function formatTime(date) {
   const eventDate = new Date(date);
   
-  // Ensure we're working with WIB timezone (UTC+7)
-  const wibDate = new Date(eventDate.getTime() + (7 * 60 * 60 * 1000));
+  // Jika tanggal sudah dalam format ISO dengan timezone, gunakan langsung
+  // Jika tidak, asumsikan sudah dalam WIB timezone
+  const dateToFormat = eventDate;
   
-  return wibDate.toLocaleTimeString('id-ID', {
+  return dateToFormat.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
     timeZone: 'Asia/Jakarta'
@@ -88,7 +90,11 @@ function getDresscode(eventData) {
   }
   // Default dresscode based on event type or time
   const eventDate = new Date(eventData.event_date);
-  const hour = eventDate.getHours();
+  
+  // Convert to WIB timezone for hour calculation
+  const wibDate = new Date(eventDate.toLocaleString("en-US", {timeZone: "Asia/Jakarta"}));
+  const hour = wibDate.getHours();
+  
   if (hour >= 18 || hour < 6) {
     // Evening/Night events
     return "Smart Casual / Semi Formal";

@@ -23,6 +23,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { downloadCheckinReport } from '@/lib/download-service';
+import { formatDateTimeForDisplay } from '@/lib/date-utils';
+import { useCache } from '@/lib/cache-manager';
 
 interface CheckinStats {
   event_id: string;
@@ -41,8 +43,9 @@ interface CheckinReportData {
   participant_name: string;
   participant_email: string;
   phone_number?: string;
-  ticket_code?: string;
-  ticket_short_code?: string;
+  ticket_id?: string;
+  qr_code?: string;
+  short_code?: string;
   attendance_status: string;
   checkin_at?: string;
   checkin_location?: string;
@@ -59,16 +62,45 @@ export function CheckinReport() {
   const [eventFilter, setEventFilter] = useState<string>('all');
   const [events, setEvents] = useState<{ id: string; name: string }[]>([]);
   const [downloading, setDownloading] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  
+  // Cache manager
+  const { getCache, setCache } = useCache();
 
   const fetchStats = useCallback(async () => {
     try {
+      // Check cache first for statistics
+      const cacheKey = `checkin_stats_${eventFilter}`;
+      const cachedStats = getCache<CheckinStats[]>(cacheKey, {
+        ttl: 5 * 60 * 1000 // 5 minutes cache for statistics
+      });
+      
+      if (cachedStats) {
+        console.log('Statistics loaded from cache');
+        setStats(cachedStats);
+        return;
+      }
+      
+      // If not cached, fetch from database
       const { data, error } = await supabase
         .rpc('get_checkin_stats', {
           event_id_param: eventFilter === 'all' ? null : eventFilter
         });
 
       if (error) throw error;
-      setStats(data || []);
+      
+      const statsData = data || [];
+      setStats(statsData);
+      
+      // Cache the results
+      setCache(cacheKey, statsData, {
+        ttl: 5 * 60 * 1000 // 5 minutes
+      });
+      
     } catch (error) {
       console.error('Error fetching stats:', error);
       toast({
@@ -77,16 +109,52 @@ export function CheckinReport() {
         variant: 'destructive',
       });
     }
-  }, [eventFilter]);
+  }, [eventFilter, getCache, setCache]);
 
   const fetchReportData = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // First, get total count for pagination
+      let countQuery = supabase
+        .from('checkin_reports')
+        .select('*', { count: 'exact', head: true });
+
+      if (eventFilter !== 'all') {
+        countQuery = countQuery.eq('event_id', eventFilter);
+      }
+
+      const { count, error: countError } = await countQuery;
+      if (countError) throw countError;
+      
+      setTotalCount(count || 0);
+
+      // Then, get paginated data
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+      
       let query = supabase
         .from('checkin_reports')
-        .select('*')
+        .select(`
+          event_id,
+          event_name,
+          event_date,
+          event_location,
+          participant_name,
+          participant_email,
+          phone_number,
+          ticket_id,
+          qr_code,
+          short_code,
+          attendance_status,
+          checkin_at,
+          checkin_location,
+          checkin_notes,
+          checked_in_by_name
+        `)
         .order('event_name', { ascending: true })
-        .order('participant_name', { ascending: true });
+        .order('participant_name', { ascending: true })
+        .range(from, to);
 
       if (eventFilter !== 'all') {
         query = query.eq('event_id', eventFilter);
@@ -106,27 +174,60 @@ export function CheckinReport() {
     } finally {
       setLoading(false);
     }
-  }, [eventFilter]);
+  }, [eventFilter, currentPage, pageSize]);
 
   const fetchEvents = useCallback(async () => {
     try {
+      // Check cache first for events list
+      const cacheKey = 'events_list';
+      const cachedEvents = getCache<{ id: string; name: string }[]>(cacheKey, {
+        ttl: 30 * 60 * 1000 // 30 minutes cache for events list
+      });
+      
+      if (cachedEvents) {
+        console.log('Events list loaded from cache');
+        setEvents(cachedEvents);
+        return;
+      }
+      
+      // If not cached, fetch from database
       const { data, error } = await supabase
         .from('events')
         .select('id, name')
         .order('name');
 
       if (error) throw error;
-      setEvents(data || []);
+      
+      const eventsData = data || [];
+      setEvents(eventsData);
+      
+      // Cache the results
+      setCache(cacheKey, eventsData, {
+        ttl: 30 * 60 * 1000 // 30 minutes
+      });
+      
     } catch (error) {
       console.error('Error fetching events:', error);
     }
-  }, []);
+  }, [getCache, setCache]);
 
+  // Initialize data on component mount
   useEffect(() => {
     fetchStats();
     fetchReportData();
     fetchEvents();
-  }, [fetchStats, fetchReportData, fetchEvents]);
+  }, []); // Only run once on mount
+
+  // Refetch when filters or pagination change
+  useEffect(() => {
+    fetchStats();
+    fetchReportData();
+  }, [eventFilter, currentPage, pageSize]);
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [eventFilter]);
 
   const handleDownload = async (format: 'csv' | 'excel' | 'pdf' = 'csv') => {
     try {
@@ -180,7 +281,7 @@ export function CheckinReport() {
   const filteredData = uniqueReportData.filter(item =>
     item.participant_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.participant_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.ticket_short_code?.toLowerCase().includes(searchTerm.toLowerCase())
+    item.short_code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const totalStats = stats.reduce((acc, stat) => ({
@@ -428,7 +529,7 @@ export function CheckinReport() {
                           {item.event_date && (
                             <div className="text-sm text-muted-foreground flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              {format(new Date(item.event_date), 'PPp')}
+                              {formatDateTimeForDisplay(item.event_date)}
                             </div>
                           )}
                           {item.event_location && (
@@ -441,7 +542,7 @@ export function CheckinReport() {
                       </TableCell>
                       <TableCell>
                         <div className="font-mono text-sm">
-                          {item.ticket_short_code || item.ticket_code}
+                          {item.short_code || item.qr_code}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -454,7 +555,7 @@ export function CheckinReport() {
                         {item.checkin_at ? (
                           <div className="text-sm flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {format(new Date(item.checkin_at), 'PPp')}
+                            {formatDateTimeForDisplay(item.checkin_at)}
                           </div>
                         ) : (
                           <span className="text-muted-foreground">-</span>
@@ -470,6 +571,36 @@ export function CheckinReport() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          
+          {/* Pagination Controls */}
+          {!loading && filteredData.length > 0 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} participants
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {Math.ceil(totalCount / pageSize)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(Math.ceil(totalCount / pageSize), prev + 1))}
+                  disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

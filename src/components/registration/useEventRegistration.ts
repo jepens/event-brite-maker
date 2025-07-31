@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { Event } from './types';
+import { compressJSON, validateCompressedData } from '@/lib/json-compression';
 
 export function useEventRegistration(eventId: string | undefined) {
   const [event, setEvent] = useState<Event | null>(null);
@@ -344,6 +345,23 @@ export function useEventRegistration(eventId: string | undefined) {
         }
       }
 
+      // Compress custom data to reduce bandwidth
+      let compressedCustomData = null;
+      if (Object.keys(customData).length > 0) {
+        compressedCustomData = compressJSON(customData);
+        
+        // Validate compressed data before sending
+        if (!validateCompressedData(compressedCustomData)) {
+          throw new Error('Failed to compress custom data');
+        }
+        
+        console.log('Custom data compressed:', {
+          original: JSON.stringify(customData).length,
+          compressed: JSON.stringify(compressedCustomData).length,
+          reduction: `${((JSON.stringify(customData).length - JSON.stringify(compressedCustomData).length) / JSON.stringify(customData).length * 100).toFixed(1)}%`
+        });
+      }
+
       // Create registration
       const { data: registration, error: registrationError } = await supabase
         .from('registrations')
@@ -352,7 +370,7 @@ export function useEventRegistration(eventId: string | undefined) {
           participant_name: participantName,
           participant_email: participantEmail,
           phone_number: participantPhone || null,
-          custom_data: Object.keys(customData).length > 0 ? customData : null,
+          custom_data: compressedCustomData,
           status: 'pending',
         })
         .select()

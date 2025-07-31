@@ -83,7 +83,7 @@ export function RegistrationForm({
     }
   };
 
-  // Real-time email validation
+  // Real-time email validation with caching and increased debounce
   useEffect(() => {
     if (emailValidationTimeout) {
       clearTimeout(emailValidationTimeout);
@@ -92,10 +92,33 @@ export function RegistrationForm({
     if (email && checkEmailExists) {
       const timeout = setTimeout(async () => {
         if (email.length > 0) {
+          // Check cache first to reduce API calls
+          const cacheKey = `email_validation_${email.toLowerCase()}`;
+          const cached = localStorage.getItem(cacheKey);
+          
+          if (cached) {
+            const { result, timestamp } = JSON.parse(cached);
+            const cacheAge = Date.now() - timestamp;
+            const cacheValid = cacheAge < 5 * 60 * 1000; // 5 minutes cache
+            
+            if (cacheValid) {
+              // Use cached result - emailExists is handled by parent component
+              setEmailValidated(true);
+              return;
+            }
+          }
+          
+          // If not cached or expired, make API call
           await checkEmailExists(email);
           setEmailValidated(true);
+          
+          // Cache the result
+          localStorage.setItem(cacheKey, JSON.stringify({
+            result: emailExists, // Use current emailExists state
+            timestamp: Date.now()
+          }));
         }
-      }, 1000); // Debounce for 1 second
+      }, 2000); // Increased debounce from 1s to 2s
 
       setEmailValidationTimeout(timeout);
     }
@@ -105,7 +128,7 @@ export function RegistrationForm({
         clearTimeout(emailValidationTimeout);
       }
     };
-  }, [email, checkEmailExists]);
+  }, [email, checkEmailExists, emailValidationTimeout, emailExists]);
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value;
@@ -194,7 +217,7 @@ export function RegistrationForm({
     }
   };
 
-  // Handle member number validation
+  // Handle member number validation with caching and increased debounce
   const handleMemberNumberChange = (fieldName: string, value: string) => {
     setMemberNumbers(prev => ({ ...prev, [fieldName]: value }));
     setMemberNumberValidated(prev => ({ ...prev, [fieldName]: false }));
@@ -210,19 +233,43 @@ export function RegistrationForm({
         if (value.length === 10) {
           console.log(`Validating member number: ${value}`);
           
-          // Check if member number exists in database
+          // Check cache first to reduce API calls
+          const cacheKey = `member_validation_${value}`;
+          const cached = localStorage.getItem(cacheKey);
+          
+          if (cached) {
+            const { exists, registered, timestamp } = JSON.parse(cached);
+            const cacheAge = Date.now() - timestamp;
+            const cacheValid = cacheAge < 60 * 60 * 1000; // 1 hour cache for member data
+            
+            if (cacheValid) {
+              console.log(`Using cached member validation for: ${value}`);
+              setMemberNumberValidated(prev => ({ ...prev, [fieldName]: true }));
+              return;
+            }
+          }
+          
+          // If not cached or expired, make API calls
           const exists = await checkMemberNumberExists(value);
           console.log(`Member number exists in database: ${exists}`);
           
+          let registered = false;
           if (exists) {
             // Check if already registered for this event
-            const alreadyRegistered = await checkMemberNumberRegistered(value);
-            console.log(`Member number already registered for this event: ${alreadyRegistered}`);
+            registered = await checkMemberNumberRegistered(value);
+            console.log(`Member number already registered for this event: ${registered}`);
           }
+          
+          // Cache the results
+          localStorage.setItem(cacheKey, JSON.stringify({
+            exists,
+            registered,
+            timestamp: Date.now()
+          }));
           
           setMemberNumberValidated(prev => ({ ...prev, [fieldName]: true }));
         }
-      }, 1000); // Debounce for 1 second
+      }, 2000); // Increased debounce from 1s to 2s
 
       setMemberNumberValidationTimeouts(prev => ({ ...prev, [fieldName]: timeout }));
     }
@@ -238,7 +285,7 @@ export function RegistrationForm({
         clearTimeout(whatsappValidationTimeout);
       }
     };
-  }, []);
+  }, [memberNumberValidationTimeouts, whatsappValidationTimeout]);
 
   return (
     <div className="space-y-6">

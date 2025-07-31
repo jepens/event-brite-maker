@@ -10,6 +10,7 @@ import {
 import { QRCodeCanvas } from 'qrcode.react';
 import { Download } from 'lucide-react';
 import { Registration } from './types';
+import { formatDateTimeForDisplay } from '@/lib/date-utils';
 
 interface Ticket {
   id: string;
@@ -92,7 +93,7 @@ export function QRDialog({
                       <p><strong>Short Code:</strong> {ticket.short_code}</p>
                     )}
                     <p><strong>Status:</strong> {ticket.status}</p>
-                    <p><strong>Issued:</strong> {new Date(ticket.issued_at).toLocaleString()}</p>
+                    <p><strong>Issued:</strong> {formatDateTimeForDisplay(ticket.issued_at)}</p>
                   </div>
                 </div>
 

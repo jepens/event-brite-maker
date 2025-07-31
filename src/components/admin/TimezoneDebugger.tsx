@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Clock, Globe, AlertTriangle } from 'lucide-react';
-import { getTimezoneInfo, formatDateForDisplay, formatTimeForDisplay, formatDateForInput } from '@/lib/date-utils';
+import { getTimezoneInfo, formatDateForDisplay, formatTimeForDisplay24, formatDateForInput } from '@/lib/date-utils';
 
 interface TimezoneDebuggerProps {
   eventDate?: string;
@@ -64,7 +64,7 @@ export function TimezoneDebugger({ eventDate }: TimezoneDebuggerProps) {
                 <span className="font-medium">Display Format:</span> {formatDateForDisplay(eventDate)}
               </div>
               <div className="p-2 bg-white rounded border">
-                <span className="font-medium">Time Format:</span> {formatTimeForDisplay(eventDate)}
+                <span className="font-medium">Time Format:</span> {formatTimeForDisplay24(eventDate)}
               </div>
               <div className="p-2 bg-white rounded border">
                 <span className="font-medium">Input Format:</span> {formatDateForInput(eventDate)}
@@ -84,7 +84,7 @@ export function TimezoneDebugger({ eventDate }: TimezoneDebuggerProps) {
               <span className="font-medium">Display:</span> {formatDateForDisplay(testDate)}
             </div>
             <div className="p-2 bg-white rounded border">
-              <span className="font-medium">Time:</span> {formatTimeForDisplay(testDate)}
+                              <span className="font-medium">Time:</span> {formatTimeForDisplay24(testDate)}
             </div>
             <div className="p-2 bg-white rounded border">
               <span className="font-medium">Input:</span> {formatDateForInput(testDate)}

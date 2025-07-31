@@ -189,10 +189,7 @@ export function useOptimizedEvents(filters?: Record<string, unknown>) {
       event_date,
       location,
       max_participants,
-      branding_config,
-      custom_fields,
-      created_at,
-      updated_at
+      custom_fields
     `,
     filters,
     orderBy: { column: 'event_date', ascending: false },
@@ -214,22 +211,17 @@ export function useOptimizedRegistrations(eventId?: string, status?: string) {
       participant_name,
       participant_email,
       phone_number,
-      custom_data,
       status,
       registered_at,
       events (
         id,
-        name,
-        event_date,
-        location
+        name
       ),
       tickets (
         id,
         qr_code,
         short_code,
-        status,
-        checkin_at,
-        checkin_location
+        status
       )
     `,
     filters,

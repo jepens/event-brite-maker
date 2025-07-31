@@ -3,8 +3,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CheckCircle, XCircle, Clock, QrCode, Mail, Trash2 } from 'lucide-react';
-import { format } from 'date-fns';
 import { Registration } from './types';
+import { formatDateForDisplay, formatTimeForDisplay24 } from '@/lib/date-utils';
 
 interface RegistrationTableProps {
   registrations: Registration[];
@@ -90,7 +90,7 @@ export function RegistrationTable({
                 </TableCell>
                 <TableCell>
                   <div className="text-sm">
-                    {format(new Date(registration.registered_at), 'PPp')}
+                    {formatDateForDisplay(registration.registered_at)} {formatTimeForDisplay24(registration.registered_at)}
                   </div>
                 </TableCell>
                 <TableCell>

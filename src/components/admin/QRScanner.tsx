@@ -8,6 +8,7 @@ import { Camera, CameraOff, CheckCircle, XCircle, Scan } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import QrScanner from 'qr-scanner';
+import { formatDateTimeForDisplay } from '@/lib/date-utils';
 
 interface ScanResult {
   success: boolean;
@@ -122,7 +123,7 @@ export function QRScanner() {
       if (ticket.status === 'used' || ticket.checkin_at) {
         setScanResult({
           success: false,
-          message: `This ticket has already been used. Checked in at: ${ticket.checkin_at ? new Date(ticket.checkin_at).toLocaleString('id-ID') : 'Unknown time'}`,
+          message: `This ticket has already been used. Checked in at: ${ticket.checkin_at ? formatDateTimeForDisplay(ticket.checkin_at) : 'Unknown time'}`,
           participant: {
             name: ticket.registrations.participant_name,
             email: ticket.registrations.participant_email,

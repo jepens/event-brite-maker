@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { RateLimitState } from '@/hooks/useRateLimit';
+import { formatTimeForDisplay24 } from '@/lib/date-utils';
 
 interface RateLimitIndicatorProps {
   state: RateLimitState;
@@ -125,7 +126,7 @@ export function RateLimitIndicator({
           <div className="text-xs text-muted-foreground space-y-1">
             <div>Total attempts: {state.attempts}</div>
             <div>Remaining attempts: {state.remaining}</div>
-            <div>Reset time: {new Date(state.resetTime).toLocaleTimeString()}</div>
+            <div>Reset time: {formatTimeForDisplay24(new Date(state.resetTime).toISOString())}</div>
           </div>
         )}
 
