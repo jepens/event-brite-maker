@@ -1,43 +1,37 @@
-# Multi-stage build for production
-FROM node:18-alpine AS builder
+# Multi-stage build for React + Vite application
+FROM node:18-alpine AS base
 
-# Set working directory
+# Install dependencies only when needed
+FROM base AS deps
+# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY bun.lockb ./
+# Install dependencies based on the preferred package manager
+COPY package.json package-lock.json* ./
+RUN npm ci
 
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy source code
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build the application
 RUN npm run build
 
-# Production stage with nginx
-FROM nginx:alpine
+# Production image, copy all the files and run the app
+FROM nginx:alpine AS runner
+WORKDIR /usr/share/nginx/html
 
-# Copy built application from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Remove default nginx static assets
+RUN rm -rf ./*
 
-# Copy custom nginx configuration
+# Copy static assets from builder stage
+COPY --from=builder /app/dist .
+
+# Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
-
-# Create nginx user if it doesn't exist
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nextjs -u 1001
-
-# Change ownership of the nginx directory
-RUN chown -R nextjs:nodejs /usr/share/nginx/html
-RUN chown -R nextjs:nodejs /var/cache/nginx
-RUN chown -R nextjs:nodejs /var/log/nginx
-RUN chown -R nextjs:nodejs /etc/nginx/conf.d
-
-# Switch to non-root user
-USER nextjs
 
 # Expose port 80
 EXPOSE 80
