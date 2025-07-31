@@ -42,7 +42,7 @@ const handler = async (req) => {
     console.log("Service Role Key configured:", !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
 
     // Fetch registration details along with associated event data
-    const { data: registration, error: regError } = await supabase.from('registrations').select(`
+    const { data: registrationData, error: regError } = await supabase.from('registrations').select(`
       *,
       events (
         id,
@@ -52,7 +52,18 @@ const handler = async (req) => {
         branding_config,
         whatsapp_enabled
       )
-    `).eq('id', registration_id).single();
+    `).eq('id', registration_id).limit(1);
+
+    if (regError) {
+      console.error('Error fetching registration:', regError);
+      throw new Error(`Failed to fetch registration: ${regError.message}`);
+    }
+
+    if (!registrationData || registrationData.length === 0) {
+      throw new Error('Registration not found');
+    }
+
+    const registration = registrationData[0];
 
     if (regError) {
       console.error('Error fetching registration:', regError);
@@ -118,19 +129,24 @@ const handler = async (req) => {
 
     // Create a new ticket record in the 'tickets' table
     console.log("Creating ticket record with short code:", shortCode);
-    const { data: ticket, error: ticketError } = await supabase.from('tickets').insert({
+    const { data: ticketData, error: ticketError } = await supabase.from('tickets').insert({
       registration_id: registration_id,
       qr_code: qrData,
       short_code: shortCode,
       qr_image_url: urlData.publicUrl,
       status: 'unused'
-    }).select().single();
+    }).select().limit(1);
 
     if (ticketError) {
       console.error('Ticket creation error:', ticketError);
       throw new Error(`Failed to create ticket: ${ticketError.message}`);
     }
 
+    if (!ticketData || ticketData.length === 0) {
+      throw new Error('Failed to create ticket record');
+    }
+
+    const ticket = ticketData[0];
     console.log("Ticket record created successfully");
 
     // Send email notification (always required)

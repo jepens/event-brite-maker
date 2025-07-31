@@ -199,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Profile fetch completed, setting isProfileFetching to false');
       isProfileFetching.current = false;
     }
-  }, [mounted]); // Only depend on mounted to prevent unnecessary re-renders
+  }, []); // No dependencies needed since we use refs
 
   const initializeAuth = useCallback(async () => {
     try {
@@ -252,7 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     }
-  }, [fetchProfile]); // Only depend on fetchProfile
+  }, [fetchProfile, setProfileWithRef]); // Include setProfileWithRef dependency
 
   const retry = useCallback(() => {
     // Reset all fetch-related state
@@ -436,7 +436,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(initializationTimer.current);
       }
     };
-  }, [initializeAuth, fetchProfile, retryCount]); // Removed profile from dependencies
+  }, [initializeAuth, fetchProfile, retryCount, setProfileWithRef]); // Include setProfileWithRef dependency
 
   const signIn = async (email: string, password: string) => {
     try {

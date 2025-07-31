@@ -1,0 +1,33 @@
+{
+  "name": "Event Check-in Scanner",
+  "short_name": "Check-in",
+  "description": "Offline-capable event check-in and QR scanner",
+  "start_url": "/admin/scanner",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "icons": [],
+  "shortcuts": [
+    {
+      "name": "QR Scanner",
+      "short_name": "Scanner",
+      "description": "Open QR scanner for check-in",
+      "url": "/admin/scanner",
+      "icons": []
+    },
+    {
+      "name": "Registrations",
+      "short_name": "Registrations",
+      "description": "View event registrations",
+      "url": "/admin/registrations",
+      "icons": []
+    }
+  ]
+}

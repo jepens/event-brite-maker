@@ -1,0 +1,9 @@
+# Placeholder Icon
+# This is a placeholder for icon-512.png
+# Replace with actual PNG icon file
+# Size should be 512x512 pixels
+
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#3B82F6"/>
+  <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="white" font-family="Arial, sans-serif" font-size="153.6" font-weight="bold">E</text>
+</svg>

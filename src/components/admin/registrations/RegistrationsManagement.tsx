@@ -6,9 +6,11 @@ import { useRegistrations } from './useRegistrations';
 import { RegistrationFilters } from './RegistrationFilters';
 import { RegistrationActions } from './RegistrationActions';
 import { RegistrationTable } from './RegistrationTable';
+import { MobileRegistrationList } from './MobileRegistrationList';
 import { QRDialog } from './QRDialog';
 import { DeleteDialog } from './DeleteDialog';
 import { Registration, Ticket } from './types';
+import { useMobile } from '@/hooks/use-mobile';
 
 export function RegistrationsManagement() {
   const {
@@ -18,6 +20,8 @@ export function RegistrationsManagement() {
     updateRegistrationStatus,
     deleteRegistrationById,
   } = useRegistrations();
+  
+  const { isMobile } = useMobile();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -138,6 +142,10 @@ export function RegistrationsManagement() {
     }
   };
 
+  const handleDownloadAll = () => {
+    handleDownloadRegistrations('csv');
+  };
+
   const confirmDelete = async () => {
     if (!registrationToDelete) return;
 
@@ -159,30 +167,45 @@ export function RegistrationsManagement() {
 
   return (
     <div className="space-y-6">
-      <RegistrationActions
-        filteredRegistrationsCount={filteredRegistrations.length}
-        downloading={downloading}
-        onDownloadCSV={() => handleDownloadRegistrations('csv')}
-        onDownloadExcel={() => handleDownloadRegistrations('excel')}
-      />
+      {!isMobile && (
+        <>
+          <RegistrationActions
+            filteredRegistrationsCount={filteredRegistrations.length}
+            downloading={downloading}
+            onDownloadCSV={() => handleDownloadRegistrations('csv')}
+            onDownloadExcel={() => handleDownloadRegistrations('excel')}
+          />
 
-      <RegistrationFilters
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        eventFilter={eventFilter}
-        setEventFilter={setEventFilter}
-        events={events}
-      />
+          <RegistrationFilters
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            eventFilter={eventFilter}
+            setEventFilter={setEventFilter}
+            events={events}
+          />
 
-      <RegistrationTable
-        registrations={filteredRegistrations}
-        onUpdateStatus={updateRegistrationStatus}
-        onViewTicket={handleViewTicket}
-        onResendEmail={handleResendEmail}
-        onDeleteRegistration={handleDeleteRegistration}
-      />
+          <RegistrationTable
+            registrations={filteredRegistrations}
+            onUpdateStatus={updateRegistrationStatus}
+            onViewTicket={handleViewTicket}
+            onResendEmail={handleResendEmail}
+            onDeleteRegistration={handleDeleteRegistration}
+          />
+        </>
+      )}
+
+      {isMobile && (
+        <MobileRegistrationList
+          registrations={filteredRegistrations}
+          onUpdateStatus={updateRegistrationStatus}
+          onViewTicket={handleViewTicket}
+          onResendEmail={handleResendEmail}
+          onDeleteRegistration={handleDeleteRegistration}
+          onDownloadRegistrations={handleDownloadAll}
+        />
+      )}
 
       <QRDialog
         open={showQRDialog}

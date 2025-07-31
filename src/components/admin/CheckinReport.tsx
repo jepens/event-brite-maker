@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { useMobile } from '@/hooks/use-mobile';
 import { 
   Search, 
   Users, 
@@ -50,6 +51,7 @@ interface CheckinReportData {
 }
 
 export function CheckinReport() {
+  const { isMobile } = useMobile();
   const [stats, setStats] = useState<CheckinStats[]>([]);
   const [reportData, setReportData] = useState<CheckinReportData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,13 +60,7 @@ export function CheckinReport() {
   const [events, setEvents] = useState<{ id: string; name: string }[]>([]);
   const [downloading, setDownloading] = useState(false);
 
-  useEffect(() => {
-    fetchStats();
-    fetchReportData();
-    fetchEvents();
-  }, [eventFilter]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .rpc('get_checkin_stats', {
@@ -81,9 +77,9 @@ export function CheckinReport() {
         variant: 'destructive',
       });
     }
-  };
+  }, [eventFilter]);
 
-  const fetchReportData = async () => {
+  const fetchReportData = useCallback(async () => {
     try {
       setLoading(true);
       let query = supabase
@@ -110,9 +106,9 @@ export function CheckinReport() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventFilter]);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('events')
@@ -124,7 +120,13 @@ export function CheckinReport() {
     } catch (error) {
       console.error('Error fetching events:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+    fetchReportData();
+    fetchEvents();
+  }, [fetchStats, fetchReportData, fetchEvents]);
 
   const handleDownload = async (format: 'csv' | 'excel' | 'pdf' = 'csv') => {
     try {
@@ -168,7 +170,14 @@ export function CheckinReport() {
     }
   };
 
-  const filteredData = reportData.filter(item =>
+  // Remove duplicates based on event_id and participant_email combination
+  const uniqueReportData = reportData.filter((item, index, self) => 
+    index === self.findIndex(t => 
+      t.event_id === item.event_id && t.participant_email === item.participant_email
+    )
+  );
+
+  const filteredData = uniqueReportData.filter(item =>
     item.participant_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.participant_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.ticket_short_code?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -194,11 +203,12 @@ export function CheckinReport() {
             Monitor attendance and generate reports for events
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
           <Button
             onClick={() => handleDownload('csv')}
             disabled={downloading}
             variant="outline"
+            className={isMobile ? 'mobile-button' : ''}
           >
             <Download className="h-4 w-4 mr-2" />
             {downloading ? 'Downloading...' : 'Download CSV'}
@@ -207,6 +217,7 @@ export function CheckinReport() {
             onClick={() => handleDownload('excel')}
             disabled={downloading}
             variant="outline"
+            className={isMobile ? 'mobile-button' : ''}
           >
             <Download className="h-4 w-4 mr-2" />
             {downloading ? 'Downloading...' : 'Download Excel'}
@@ -215,7 +226,7 @@ export function CheckinReport() {
             onClick={() => handleDownload('pdf')}
             disabled={downloading}
             variant="outline"
-            className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+            className={`bg-red-50 border-red-200 text-red-700 hover:bg-red-100 ${isMobile ? 'mobile-button' : ''}`}
           >
             <Download className="h-4 w-4 mr-2" />
             {downloading ? 'Downloading...' : 'Download PDF'}
@@ -229,7 +240,7 @@ export function CheckinReport() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-4'}`}>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Registrations</CardTitle>
@@ -400,8 +411,8 @@ export function CheckinReport() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredData.map((item) => (
-                    <TableRow key={`${item.event_id}-${item.participant_email}`}>
+                  {filteredData.map((item, index) => (
+                    <TableRow key={`${item.event_id}-${item.participant_email}-${index}`}>
                       <TableCell>
                         <div>
                           <div className="font-medium">{item.participant_name}</div>

@@ -126,6 +126,39 @@ export function useRegistrations() {
         description: `Registration ${status} successfully`,
       });
 
+      // If status is approved, generate QR ticket and send notifications
+      if (status === 'approved') {
+        try {
+          console.log('Generating QR ticket for approved registration:', registrationId);
+          
+          const { data: qrData, error: qrError } = await supabase.functions.invoke('generate-qr-ticket', {
+            body: { registration_id: registrationId }
+          });
+
+          if (qrError) {
+            console.error('Error generating QR ticket:', qrError);
+            toast({
+              title: 'Warning',
+              description: 'Registration approved but failed to generate ticket. Please try again.',
+              variant: 'destructive',
+            });
+          } else {
+            console.log('QR ticket generated successfully:', qrData);
+            toast({
+              title: 'Success',
+              description: 'Registration approved and ticket generated successfully!',
+            });
+          }
+        } catch (qrError) {
+          console.error('Error calling generate-qr-ticket function:', qrError);
+          toast({
+            title: 'Warning',
+            description: 'Registration approved but failed to generate ticket. Please try again.',
+            variant: 'destructive',
+          });
+        }
+      }
+
       // Refresh registrations to get updated data
       await fetchRegistrations();
     } catch (error) {

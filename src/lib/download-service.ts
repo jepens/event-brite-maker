@@ -6,6 +6,15 @@ import 'jspdf-autotable';
 import { createPDFWithCDN } from './pdf-fallback';
 import { createPDFDirectCDN } from './pdf-cdn-direct';
 
+// Define proper types for custom fields
+interface CustomField {
+  name: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  options?: string[];
+}
+
 export interface DownloadOptions {
   eventId?: string;
   status?: 'pending' | 'approved' | 'rejected' | 'all';
@@ -19,6 +28,7 @@ export interface PDFOptions {
   title?: string;
   subtitle?: string;
   includeSummary?: boolean;
+  [key: string]: unknown;
 }
 
 export interface RegistrationData {
@@ -37,6 +47,7 @@ export interface RegistrationData {
   checkin_location?: string;
   checkin_notes?: string;
   custom_data?: Record<string, unknown>;
+  event_custom_fields?: CustomField[];
 }
 
 export interface CheckinReportData {
@@ -54,6 +65,8 @@ export interface CheckinReportData {
   checkin_location?: string;
   checkin_notes?: string;
   checked_in_by_name?: string;
+  custom_data?: Record<string, unknown>;
+  event_custom_fields?: CustomField[];
 }
 
 // Fetch registration data for download
@@ -76,7 +89,8 @@ export async function fetchRegistrationData(options: DownloadOptions): Promise<R
           id,
           name,
           event_date,
-          location
+          location,
+          custom_fields
         ),
         tickets (
           id,
@@ -130,15 +144,16 @@ export async function fetchRegistrationData(options: DownloadOptions): Promise<R
       phone_number: registration.phone_number || '',
       status: registration.status,
       registered_at: registration.registered_at,
-      event_name: (registration.events as { name?: string; event_date?: string; location?: string })?.name || 'Unknown Event',
-      event_date: (registration.events as { name?: string; event_date?: string; location?: string })?.event_date || '',
-      event_location: (registration.events as { name?: string; event_date?: string; location?: string })?.location || '',
+      event_name: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.name || 'Unknown Event',
+      event_date: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.event_date || '',
+      event_location: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.location || '',
       ticket_code: registration.tickets?.[0]?.qr_code || '',
       ticket_short_code: registration.tickets?.[0]?.short_code || '',
       checkin_at: registration.tickets?.[0]?.checkin_at || '',
       checkin_location: registration.tickets?.[0]?.checkin_location || '',
       checkin_notes: registration.tickets?.[0]?.checkin_notes || '',
-      custom_data: registration.custom_data
+      custom_data: registration.custom_data,
+      event_custom_fields: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.custom_fields || []
     }));
 
     console.log('✅ Mapped data count:', mappedData.length);
@@ -156,6 +171,7 @@ export async function fetchRegistrationData(options: DownloadOptions): Promise<R
 // Fetch check-in report data
 export async function fetchCheckinReportData(eventId?: string): Promise<CheckinReportData[]> {
   try {
+    // First, get the check-in report data
     let query = supabase
       .from('checkin_reports')
       .select('*')
@@ -166,30 +182,189 @@ export async function fetchCheckinReportData(eventId?: string): Promise<CheckinR
       query = query.eq('event_id', eventId);
     }
 
-    const { data, error } = await query;
+    const { data: checkinData, error: checkinError } = await query;
 
-    if (error) throw error;
+    if (checkinError) throw checkinError;
 
-    return (data || []).map(report => ({
-      event_id: report.event_id,
-      event_name: report.event_name,
-      event_date: report.event_date,
-      event_location: report.event_location,
-      participant_name: report.participant_name,
-      participant_email: report.participant_email,
-      phone_number: report.phone_number || '',
-      ticket_code: report.qr_code || '',
-      ticket_short_code: report.short_code || '',
-      attendance_status: report.attendance_status,
-      checkin_at: report.checkin_at,
-      checkin_location: report.checkin_location || '',
-      checkin_notes: report.checkin_notes || '',
-      checked_in_by_name: report.checked_in_by_name || ''
-    }));
+    // Get registration data with custom fields for each event
+    const registrationQuery = supabase
+      .from('registrations')
+      .select(`
+        id,
+        custom_data,
+        events (
+          id,
+          custom_fields
+        )
+      `)
+      .eq('status', 'approved');
+
+    if (eventId && eventId !== 'all') {
+      registrationQuery.eq('event_id', eventId);
+    }
+
+    const { data: registrationData, error: registrationError } = await registrationQuery;
+
+    if (registrationError) throw registrationError;
+
+    // Create a map of registration_id to custom data and event custom fields
+    const customDataMap = new Map();
+    (registrationData || []).forEach(registration => {
+      customDataMap.set(registration.id, {
+        custom_data: registration.custom_data || {},
+        event_custom_fields: (registration.events as { custom_fields?: CustomField[] })?.custom_fields || []
+      });
+    });
+
+    return (checkinData || []).map(report => {
+      const customInfo = customDataMap.get(report.registration_id) || {
+        custom_data: {},
+        event_custom_fields: []
+      };
+
+      return {
+        event_id: report.event_id,
+        event_name: report.event_name,
+        event_date: report.event_date,
+        event_location: report.event_location,
+        participant_name: report.participant_name,
+        participant_email: report.participant_email,
+        phone_number: report.phone_number || '',
+        ticket_code: report.qr_code || '',
+        ticket_short_code: report.short_code || '',
+        attendance_status: report.attendance_status,
+        checkin_at: report.checkin_at,
+        checkin_location: report.checkin_location || '',
+        checkin_notes: report.checkin_notes || '',
+        checked_in_by_name: report.checked_in_by_name || '',
+        custom_data: customInfo.custom_data,
+        event_custom_fields: customInfo.event_custom_fields
+      };
+    });
   } catch (error) {
     console.error('Error fetching check-in report data:', error);
     throw error;
   }
+}
+
+// Generate column styles for PDF based on headers
+export function generateColumnStyles(headers: string[]): Record<number, { cellWidth: number }> {
+  const columnStyles: Record<number, { cellWidth: number }> = {};
+  
+  headers.forEach((header, index) => {
+    let cellWidth = 30; // Default width
+    
+    // Set specific widths for known headers
+    if (header === 'ID') {
+      cellWidth = 25;
+    } else if (header === 'Nama Peserta') {
+      cellWidth = 35;
+    } else if (header === 'Email') {
+      cellWidth = 55;
+    } else if (header === 'Nomor Telepon') {
+      cellWidth = 30;
+    } else if (header === 'Status') {
+      cellWidth = 25;
+    } else if (header === 'Tanggal Registrasi') {
+      cellWidth = 35;
+    } else if (header === 'Nama Event') {
+      cellWidth = 40;
+    } else if (header === 'Tanggal Event') {
+      cellWidth = 35;
+    } else if (header === 'Lokasi Event') {
+      cellWidth = 40;
+    } else if (header === 'Kode Tiket') {
+      cellWidth = 35;
+    } else if (header === 'Kode Pendek') {
+      cellWidth = 25;
+    } else if (header === 'Waktu Check-in') {
+      cellWidth = 35;
+    } else if (header === 'Lokasi Check-in') {
+      cellWidth = 35;
+    } else if (header === 'Catatan Check-in') {
+      cellWidth = 40;
+    } else if (header === 'ID Event') {
+      cellWidth = 25;
+    } else if (header === 'Status Kehadiran') {
+      cellWidth = 30;
+    } else if (header === 'Checked-in Oleh') {
+      cellWidth = 35;
+    } else {
+      // For custom fields, use a reasonable default width
+      cellWidth = Math.min(Math.max(header.length * 2, 25), 50);
+    }
+    
+    columnStyles[index] = { cellWidth };
+  });
+  
+  return columnStyles;
+}
+
+// Flatten registration data with custom fields
+export function flattenRegistrationData(data: RegistrationData[]): Record<string, unknown>[] {
+  return data.map(registration => {
+    const baseData = {
+      id: registration.id,
+      participant_name: registration.participant_name,
+      participant_email: registration.participant_email,
+      phone_number: registration.phone_number || '',
+      status: registration.status,
+      registered_at: registration.registered_at,
+      event_name: registration.event_name,
+      event_date: registration.event_date || '',
+      event_location: registration.event_location || '',
+      ticket_code: registration.ticket_code || '',
+      ticket_short_code: registration.ticket_short_code || '',
+      checkin_at: registration.checkin_at || '',
+      checkin_location: registration.checkin_location || '',
+      checkin_notes: registration.checkin_notes || ''
+    };
+
+    // Add custom fields data
+    const customData: Record<string, unknown> = {};
+    if (registration.custom_data && registration.event_custom_fields) {
+      registration.event_custom_fields.forEach((field: CustomField) => {
+        const fieldName = field.name;
+        const fieldValue = registration.custom_data?.[fieldName] || '';
+        customData[field.label || field.name] = fieldValue;
+      });
+    }
+
+    return { ...baseData, ...customData };
+  });
+}
+
+// Flatten check-in report data with custom fields
+export function flattenCheckinReportData(data: CheckinReportData[]): Record<string, unknown>[] {
+  return data.map(report => {
+    const baseData = {
+      participant_name: report.participant_name,
+      participant_email: report.participant_email,
+      phone_number: report.phone_number || '',
+      attendance_status: report.attendance_status,
+      checkin_at: report.checkin_at || '',
+      checkin_location: report.checkin_location || '',
+      checkin_notes: report.checkin_notes || '',
+      checked_in_by_name: report.checked_in_by_name || '',
+      event_name: report.event_name,
+      event_date: report.event_date || '',
+      event_location: report.event_location || '',
+      ticket_code: report.ticket_code || '',
+      ticket_short_code: report.ticket_short_code || ''
+    };
+
+    // Add custom fields
+    const customData: Record<string, unknown> = {};
+    if (report.custom_data && report.event_custom_fields) {
+      report.event_custom_fields.forEach((field: CustomField) => {
+        const fieldName = field.name;
+        const fieldValue = report.custom_data?.[fieldName] || '';
+        customData[field.label || field.name] = fieldValue;
+      });
+    }
+
+    return { ...baseData, ...customData };
+  });
 }
 
 // Convert data to CSV format
@@ -231,14 +406,19 @@ export function convertToCSV(data: unknown[], headers: string[]): string {
     console.log(`🔍 Processing row ${index + 1}:`, row);
     
     const rowData = headers.map(header => {
+      // First try to get value using header mapping
       const dataKey = headerMapping[header];
-      if (!dataKey) {
-        console.warn(`⚠️ No mapping found for header: ${header}`);
-        return '';
+      let value = '';
+      
+      if (dataKey) {
+        value = String((row as Record<string, unknown>)[dataKey] || '');
+      } else {
+        // If no mapping found, try to get value directly using header as key
+        // This handles custom fields where header is the field label
+        value = String((row as Record<string, unknown>)[header] || '');
       }
       
-      const value = (row as Record<string, unknown>)[dataKey] || '';
-      console.log(`  ${header} (${dataKey}): ${value}`);
+      console.log(`  ${header} (${dataKey || header}): ${value}`);
       
       // Escape commas and quotes in CSV
       if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
@@ -314,14 +494,19 @@ export function downloadExcel(data: unknown[], headers: string[], filename: stri
         console.log(`🔍 Processing Excel row ${index + 1}:`, row);
         
         const rowData = headers.map(header => {
+          // First try to get value using header mapping
           const dataKey = headerMapping[header];
-          if (!dataKey) {
-            console.warn(`⚠️ No mapping found for header: ${header}`);
-            return '';
+          let value = '';
+          
+          if (dataKey) {
+            value = String((row as Record<string, unknown>)[dataKey] || '');
+          } else {
+            // If no mapping found, try to get value directly using header as key
+            // This handles custom fields where header is the field label
+            value = String((row as Record<string, unknown>)[header] || '');
           }
           
-          const value = (row as Record<string, unknown>)[dataKey] || '';
-          console.log(`  ${header} (${dataKey}): ${value}`);
+          console.log(`  ${header} (${dataKey || header}): ${value}`);
           return value;
         });
         
@@ -338,10 +523,52 @@ export function downloadExcel(data: unknown[], headers: string[], filename: stri
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-    // Set column widths based on content
-    const columnWidths = headers.map(header => ({
-      wch: Math.max(header.length, 15) // Minimum width 15, or header length
-    }));
+    // Set column widths based on content and custom fields
+    const columnWidths = headers.map(header => {
+      let width = 15; // Default minimum width
+      
+      // Set specific widths for known headers
+      if (header === 'ID') {
+        width = 10;
+      } else if (header === 'Nama Peserta') {
+        width = 25;
+      } else if (header === 'Email') {
+        width = 35;
+      } else if (header === 'Nomor Telepon') {
+        width = 20;
+      } else if (header === 'Status') {
+        width = 15;
+      } else if (header === 'Tanggal Registrasi') {
+        width = 20;
+      } else if (header === 'Nama Event') {
+        width = 30;
+      } else if (header === 'Tanggal Event') {
+        width = 20;
+      } else if (header === 'Lokasi Event') {
+        width = 30;
+      } else if (header === 'Kode Tiket') {
+        width = 25;
+      } else if (header === 'Kode Pendek') {
+        width = 15;
+      } else if (header === 'Waktu Check-in') {
+        width = 20;
+      } else if (header === 'Lokasi Check-in') {
+        width = 25;
+      } else if (header === 'Catatan Check-in') {
+        width = 30;
+      } else if (header === 'ID Event') {
+        width = 10;
+      } else if (header === 'Status Kehadiran') {
+        width = 20;
+      } else if (header === 'Checked-in Oleh') {
+        width = 25;
+      } else {
+        // For custom fields, use a reasonable width based on header length
+        width = Math.min(Math.max(header.length, 15), 40);
+      }
+      
+      return { wch: width };
+    });
 
     // Apply column widths
     worksheet['!cols'] = columnWidths;
@@ -541,27 +768,19 @@ export async function downloadPDF(data: unknown[], headers: string[], filename: 
         console.log(`🔍 Processing PDF row ${index + 1}:`, row);
         
         const rowData = headers.map(header => {
-          // Dynamic mapping based on available headers
-          let dataKey = headerMapping[header];
-          if (!dataKey) {
-            // Try alternative mappings for simplified headers
-            const alternativeMappings: Record<string, string> = {
-              'Nama Peserta': 'participant_name',
-              'Email': 'participant_email',
-              'Nomor Telepon': 'phone_number',
-              'Status Kehadiran': 'attendance_status',
-              'Waktu Check-in': 'checkin_at'
-            };
-            dataKey = alternativeMappings[header];
+          // First try to get value using header mapping
+          const dataKey = headerMapping[header];
+          let value = '';
+          
+          if (dataKey) {
+            value = String((row as Record<string, unknown>)[dataKey] || '');
+          } else {
+            // If no mapping found, try to get value directly using header as key
+            // This handles custom fields where header is the field label
+            value = String((row as Record<string, unknown>)[header] || '');
           }
           
-          if (!dataKey) {
-            console.warn(`⚠️ No mapping found for header: ${header}`);
-            return '';
-          }
-          
-          const value = (row as Record<string, unknown>)[dataKey] || '';
-          console.log(`  ${header} (${dataKey}): ${value}`);
+          console.log(`  ${header} (${dataKey || header}): ${value}`);
           
           // Format dates for better readability
           if (header.includes('Tanggal') || header.includes('Waktu')) {
@@ -642,14 +861,8 @@ export async function downloadPDF(data: unknown[], headers: string[], filename: 
             fontSize: 8,
             halign: 'left',
           },
-          // Optimized column widths for 5 columns
-          columnStyles: {
-            0: { cellWidth: 35 }, // Nama Peserta
-            1: { cellWidth: 55 }, // Email
-            2: { cellWidth: 30 }, // Nomor Telepon
-            3: { cellWidth: 30 }, // Status Kehadiran
-            4: { cellWidth: 35 }, // Waktu Check-in
-          },
+          // Dynamic column widths based on headers
+          columnStyles: generateColumnStyles(headers),
           margin: { top: 5, right: 10, bottom: 10, left: 10 },
           didDrawPage: function (data) {
             try {
@@ -759,9 +972,9 @@ export async function downloadPDF(data: unknown[], headers: string[], filename: 
   }
 }
 
-// Get registration headers for CSV/Excel
-export function getRegistrationHeaders(): string[] {
-  return [
+// Get registration headers for CSV/Excel with dynamic custom fields
+export function getRegistrationHeaders(data?: RegistrationData[]): string[] {
+  const baseHeaders = [
     'ID',
     'Nama Peserta',
     'Email',
@@ -777,17 +990,50 @@ export function getRegistrationHeaders(): string[] {
     'Lokasi Check-in',
     'Catatan Check-in'
   ];
+
+  // If no data provided, return base headers
+  if (!data || data.length === 0) {
+    return baseHeaders;
+  }
+
+  // Get custom fields from the first registration (assuming all registrations are from the same event)
+  const firstRegistration = data[0];
+  const customFields = firstRegistration.event_custom_fields || [];
+
+  // Add custom field headers
+  const customHeaders = customFields.map((field: CustomField) => field.label || field.name);
+
+  return [...baseHeaders, ...customHeaders];
 }
 
 // Get check-in report headers for CSV/Excel
-export function getCheckinReportHeaders(): string[] {
-  return [
+export function getCheckinReportHeaders(data?: CheckinReportData[]): string[] {
+  const baseHeaders = [
     'Nama Peserta',
     'Email',
     'Nomor Telepon',
     'Status Kehadiran',
-    'Waktu Check-in'
+    'Waktu Check-in',
+    'Lokasi Check-in',
+    'Catatan Check-in',
+    'Checked-in Oleh',
+    'Nama Event',
+    'Tanggal Event',
+    'Lokasi Event',
+    'Kode Tiket',
+    'Kode Pendek'
   ];
+
+  if (!data || data.length === 0) {
+    return baseHeaders;
+  }
+
+  // Get custom fields from the first report
+  const firstReport = data[0];
+  const customFields = firstReport.event_custom_fields || [];
+  const customHeaders = customFields.map((field: CustomField) => field.label || field.name);
+
+  return [...baseHeaders, ...customHeaders];
 }
 
 // Main download function for registrations
@@ -796,7 +1042,7 @@ export async function downloadRegistrations(options: DownloadOptions) {
     console.log('🔍 Downloading registrations with options:', options);
     
     const data = await fetchRegistrationData(options);
-    const headers = getRegistrationHeaders();
+    const headers = getRegistrationHeaders(data);
     
     console.log('📊 Fetched data count:', data?.length || 0);
     console.log('📋 Headers:', headers);
@@ -824,12 +1070,15 @@ export async function downloadRegistrations(options: DownloadOptions) {
       return { success: true, count: 0, message: 'No data found, downloaded headers only' };
     }
     
+    // Flatten data to include custom fields
+    const flattenedData = flattenRegistrationData(data);
+    
     if (options.format === 'csv') {
-      downloadCSV(data, headers, filename);
+      downloadCSV(flattenedData, headers, filename);
     } else if (options.format === 'excel') {
-      downloadExcel(data, headers, filename);
+      downloadExcel(flattenedData, headers, filename);
     } else if (options.format === 'pdf') {
-      await downloadPDF(data, headers, filename, {
+      await downloadPDF(flattenedData, headers, filename, {
         title: 'Laporan Registrasi Event',
         subtitle: `Dibuat pada: ${format(new Date(), 'dd MMMM yyyy, HH:mm')}`,
         includeSummary: true
@@ -850,7 +1099,11 @@ export async function downloadCheckinReport(eventId?: string, formatType: 'csv' 
     console.log('🔍 Downloading check-in report with event filter:', eventId || 'all events');
     
     const data = await fetchCheckinReportData(eventId);
-    const headers = getCheckinReportHeaders();
+    const headers = getCheckinReportHeaders(data);
+    const flattenedData = flattenCheckinReportData(data);
+    
+    console.log('📊 Fetched check-in data count:', data?.length || 0);
+    console.log('📋 Headers:', headers);
     
     // Create filename with event info if specific event is selected
     let filename = `checkin_report_${format(new Date(), 'yyyy-MM-dd_HH-mm')}`;
@@ -860,10 +1113,31 @@ export async function downloadCheckinReport(eventId?: string, formatType: 'csv' 
       filename = `checkin_report_${sanitizedEventName}_${format(new Date(), 'yyyy-MM-dd_HH-mm')}`;
     }
     
+    // Check if we have data
+    if (!data || data.length === 0) {
+      console.log('⚠️ No check-in data found, creating file with headers only');
+      // Create file with headers only
+      const csvHeaders = headers.join(',');
+      const csv = csvHeaders + '\n'; // Add empty row to show headers
+      
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${filename}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      console.log('✅ Downloaded empty check-in report with headers');
+      return { success: true, count: 0, message: 'No data found, downloaded headers only' };
+    }
+    
     if (formatType === 'csv') {
-      downloadCSV(data, headers, filename);
+      downloadCSV(flattenedData, headers, filename);
     } else if (formatType === 'excel') {
-      downloadExcel(data, headers, filename);
+      downloadExcel(flattenedData, headers, filename);
     } else if (formatType === 'pdf') {
       // Create title with event info if specific event is selected
       let title = 'Laporan Check-in Event';
@@ -875,13 +1149,14 @@ export async function downloadCheckinReport(eventId?: string, formatType: 'csv' 
         subtitle = `${eventName} - Dibuat pada: ${format(new Date(), 'dd MMMM yyyy, HH:mm')}`;
       }
       
-      await downloadPDF(data, headers, filename, {
+      await downloadPDF(flattenedData, headers, filename, {
         title: title,
         subtitle: subtitle,
         includeSummary: true
       });
     }
     
+    console.log('✅ Check-in report download completed successfully');
     return { success: true, count: data.length };
   } catch (error) {
     console.error('Error downloading check-in report:', error);

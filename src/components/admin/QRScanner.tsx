@@ -118,11 +118,11 @@ export function QRScanner() {
         return;
       }
 
-      // Check if ticket is already used
-      if (ticket.status === 'used') {
+      // Check if ticket is already used or has been checked in
+      if (ticket.status === 'used' || ticket.checkin_at) {
         setScanResult({
           success: false,
-          message: 'This ticket has already been used.',
+          message: `This ticket has already been used. Checked in at: ${ticket.checkin_at ? new Date(ticket.checkin_at).toLocaleString('id-ID') : 'Unknown time'}`,
           participant: {
             name: ticket.registrations.participant_name,
             email: ticket.registrations.participant_email,
@@ -186,7 +186,7 @@ export function QRScanner() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Camera Scanner */}
-        <Card>
+        <Card className="mobile-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Camera className="h-5 w-5" />
@@ -197,7 +197,7 @@ export function QRScanner() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="relative">
+            <div className="relative qr-scanner">
               <video
                 ref={videoRef}
                 className="w-full h-64 bg-gray-100 rounded-lg object-cover"
@@ -215,12 +215,12 @@ export function QRScanner() {
 
             <div className="flex gap-2">
               {!scanning ? (
-                <Button onClick={startScanning} className="flex-1">
+                <Button onClick={startScanning} className="flex-1 mobile-button">
                   <Camera className="h-4 w-4 mr-2" />
                   Start Scanner
                 </Button>
               ) : (
-                <Button onClick={stopScanning} variant="outline" className="flex-1">
+                <Button onClick={stopScanning} variant="outline" className="flex-1 mobile-button">
                   <CameraOff className="h-4 w-4 mr-2" />
                   Stop Scanner
                 </Button>
@@ -230,7 +230,7 @@ export function QRScanner() {
         </Card>
 
         {/* Manual Entry */}
-        <Card>
+        <Card className="mobile-card">
           <CardHeader>
             <CardTitle>Manual Verification</CardTitle>
             <CardDescription>
@@ -245,10 +245,11 @@ export function QRScanner() {
                 value={manualCode}
                 onChange={(e) => setManualCode(e.target.value)}
                 placeholder="Enter QR code here"
+                className="mobile-input"
               />
             </div>
 
-            <Button onClick={handleManualVerification} className="w-full">
+            <Button onClick={handleManualVerification} className="w-full mobile-button">
               <CheckCircle className="h-4 w-4 mr-2" />
               Verify Ticket
             </Button>

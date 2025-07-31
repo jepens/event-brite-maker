@@ -122,7 +122,7 @@ The registration form includes an optional WhatsApp number field:
     <Input
       id="phone"
       type="tel"
-      placeholder="6281314942011"
+      placeholder="6281234567890"
       value={participantPhone}
       onChange={(e) => setParticipantPhone(e.target.value)}
     />

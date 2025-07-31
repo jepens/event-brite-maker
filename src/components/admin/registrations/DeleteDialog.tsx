@@ -31,20 +31,25 @@ export function DeleteDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete Registration</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to delete the registration for{' '}
-            <strong>{registrationToDelete.participant_name}</strong>?
-            <br />
-            <br />
-            This action will:
-            <ul className="list-disc list-inside mt-2 space-y-1">
-              <li>Delete the registration record</li>
-              <li>Delete all associated tickets</li>
-              <li>Remove all related data permanently</li>
-            </ul>
-            <br />
-            <strong>This action cannot be undone.</strong>
-          </DialogDescription>
+          <div className="space-y-4">
+            <DialogDescription>
+              Are you sure you want to delete the registration for{' '}
+              <strong>{registrationToDelete.participant_name}</strong>?
+            </DialogDescription>
+            
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">This action will:</p>
+              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                <li>Delete the registration record</li>
+                <li>Delete all associated tickets</li>
+                <li>Remove all related data permanently</li>
+              </ul>
+            </div>
+            
+            <p className="text-sm font-semibold text-destructive">
+              This action cannot be undone.
+            </p>
+          </div>
         </DialogHeader>
         <DialogFooter>
           <Button

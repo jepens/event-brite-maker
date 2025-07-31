@@ -33,18 +33,80 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
   db: {
     schema: 'public'
-  },
-  global: {
-    headers: {
-      'Content-Type': 'application/json',
-    },
   }
+  // REMOVED global headers to allow proper Content-Type for file uploads
+  // Content-Type should be set per-request, not globally
 });
+
+// Function to delete QR code files from storage
+export async function deleteQRCodeFiles(registrationId: string) {
+  try {
+    // Get all tickets for this registration to find QR code files
+    const { data: tickets, error: ticketsError } = await supabase
+      .from('tickets')
+      .select('id, short_code')
+      .eq('registration_id', registrationId);
+
+    if (ticketsError) {
+      console.error('Error fetching tickets for QR deletion:', ticketsError);
+      return { success: false, error: ticketsError };
+    }
+
+    if (!tickets || tickets.length === 0) {
+      console.log('No tickets found for registration:', registrationId);
+      return { success: true, deletedFiles: [] };
+    }
+
+    // Delete QR code files from storage
+    const deletedFiles = [];
+    for (const ticket of tickets) {
+      try {
+        // Try to delete QR code file using short_code if available, otherwise use ticket ID
+        const fileName = ticket.short_code ? `qr-${ticket.short_code}` : `qr-${ticket.id}`;
+        const filePath = `qr-codes/${fileName}.png`;
+        
+        console.log('Attempting to delete QR file:', filePath);
+        
+        const { error: deleteError } = await supabase.storage
+          .from('event-logos')
+          .remove([filePath]);
+
+        if (deleteError) {
+          console.warn('Failed to delete QR file:', filePath, deleteError);
+          // Continue with other files even if one fails
+        } else {
+          console.log('Successfully deleted QR file:', filePath);
+          deletedFiles.push(filePath);
+        }
+      } catch (fileError) {
+        console.warn('Error deleting QR file for ticket:', ticket.id, fileError);
+        // Continue with other files
+      }
+    }
+
+    return { success: true, deletedFiles };
+  } catch (error) {
+    console.error('Error in deleteQRCodeFiles:', error);
+    return { success: false, error };
+  }
+}
 
 // Function to delete registration by ID with complete cleanup
 export async function deleteRegistration(id: string) {
   try {
-    // First, delete all related tickets
+    console.log('Starting deletion process for registration:', id);
+    
+    // First, delete QR code files from storage
+    console.log('Deleting QR code files...');
+    const qrDeleteResult = await deleteQRCodeFiles(id);
+    if (qrDeleteResult.success) {
+      console.log('QR files deleted:', qrDeleteResult.deletedFiles);
+    } else {
+      console.warn('Failed to delete some QR files:', qrDeleteResult.error);
+    }
+
+    // Then, delete all related tickets
+    console.log('Deleting related tickets...');
     const { error: ticketsError } = await supabase
       .from('tickets')
       .delete()
@@ -55,14 +117,21 @@ export async function deleteRegistration(id: string) {
       throw ticketsError;
     }
 
-    // Then, delete the registration
+    // Finally, delete the registration
+    console.log('Deleting registration...');
     const { data, error } = await supabase
       .from('registrations')
       .delete()
       .eq('id', id)
       .select();
 
-    return { data, error };
+    if (error) {
+      console.error('Error deleting registration:', error);
+      throw error;
+    }
+
+    console.log('Registration deletion completed successfully');
+    return { data, error: null };
   } catch (error) {
     console.error('Error in deleteRegistration:', error);
     return { data: null, error };

@@ -11,11 +11,19 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { Download } from 'lucide-react';
 import { Registration } from './types';
 
+interface Ticket {
+  id: string;
+  qr_code: string;
+  short_code?: string;
+  status: string;
+  issued_at: string;
+}
+
 interface QRDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedRegistration: Registration | null;
-  onDownloadQR: (ticket: any) => void;
+  onDownloadQR: (ticket: Ticket) => void;
 }
 
 export function QRDialog({

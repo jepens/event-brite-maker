@@ -6,7 +6,7 @@ Untuk mengimplementasikan dresscode secara lengkap, saya merekomendasikan menamb
 
 ## 🎯 Implementation Options
 
-### Option 1: Simple Text Input (Recommended)
+### c (Recommended)
 
 **Pros:**
 - Fleksibel untuk berbagai jenis dresscode

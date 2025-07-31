@@ -6,15 +6,15 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { lazy, Suspense, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorFallback } from "@/lib/error-handler";
 import { supabase } from './integrations/supabase/client';
 
-// Lazy load page components
-const EventList = lazy(() => import("./pages/EventList"));
-const EventRegistration = lazy(() => import("./pages/EventRegistration"));
-const Auth = lazy(() => import("./pages/Auth"));
-const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+// Lazy load page components with proper default export transformation
+const EventList = lazy(() => import("./pages/EventList").then(module => ({ default: module.EventList })));
+const EventRegistration = lazy(() => import("./pages/EventRegistration").then(module => ({ default: module.EventRegistration })));
+const Auth = lazy(() => import("./pages/Auth").then(module => ({ default: module.Auth })));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard").then(module => ({ default: module.AdminDashboard })));
+const NotFound = lazy(() => import("./pages/NotFound").then(module => ({ default: module.NotFound })));
 
 // Loading component
 const PageLoader = () => (
@@ -62,28 +62,26 @@ function App() {
   }, []);
 
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  <Route path="/" element={<EventList />} />
-                  <Route path="/event/:eventId" element={<EventRegistration />} />
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/admin" element={<AdminDashboard />} />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </BrowserRouter>
-          </TooltipProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<EventList />} />
+                <Route path="/event/:eventId" element={<EventRegistration />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/admin" element={<AdminDashboard />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
