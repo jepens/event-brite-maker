@@ -1,121 +1,137 @@
-# Docker Run Script for Event Registration App (PowerShell)
-# Usage: .\docker-run.ps1 [dev|prod]
+# Event Registration App Docker Deployment Script for EasyPanel
+# This script helps deploy the application with proper environment variables
 
 param(
-    [Parameter(Position=0)]
-    [ValidateSet("dev", "prod", "development", "production")]
-    [string]$Mode = "prod"
+    [string]$Action = "deploy",
+    [string]$Port = "3000"
 )
 
-# Function to print colored output
-function Write-Status {
-    param([string]$Message)
-    Write-Host "[INFO] $Message" -ForegroundColor Blue
-}
-
-function Write-Success {
-    param([string]$Message)
-    Write-Host "[SUCCESS] $Message" -ForegroundColor Green
-}
-
-function Write-Warning {
-    param([string]$Message)
-    Write-Host "[WARNING] $Message" -ForegroundColor Yellow
-}
-
-function Write-Error {
-    param([string]$Message)
-    Write-Host "[ERROR] $Message" -ForegroundColor Red
-}
-
-# Check if Docker is installed
-function Test-Docker {
-    try {
-        $null = docker version
-        return $true
-    }
-    catch {
-        Write-Error "Docker is not installed or not running. Please install Docker Desktop first."
-        return $false
-    }
-}
+Write-Host "🚀 Event Registration App Docker Deployment" -ForegroundColor Green
+Write-Host "=============================================" -ForegroundColor Green
 
 # Check if .env file exists
-function Test-EnvFile {
-    if (-not (Test-Path ".env")) {
-        Write-Warning ".env file not found. Creating from example..."
-        if (Test-Path "docker.env.example") {
-            Copy-Item "docker.env.example" ".env"
-            Write-Warning "Please update .env file with your actual configuration values."
-        }
-        else {
-            Write-Error "docker.env.example not found. Please create .env file manually."
-            exit 1
-        }
+if (-not (Test-Path ".env")) {
+    Write-Host "❌ Error: .env file not found!" -ForegroundColor Red
+    Write-Host "Please create a .env file with your Supabase credentials:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "VITE_SUPABASE_URL=your_supabase_url" -ForegroundColor Cyan
+    Write-Host "VITE_SUPABASE_ANON_KEY=your_supabase_anon_key" -ForegroundColor Cyan
+    Write-Host "VITE_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key" -ForegroundColor Cyan
+    Write-Host ""
+    exit 1
+}
+
+# Load environment variables from .env file
+Write-Host "📋 Loading environment variables from .env file..." -ForegroundColor Blue
+Get-Content .env | ForEach-Object {
+    if ($_ -match '^([^=]+)=(.*)$') {
+        $name = $matches[1]
+        $value = $matches[2]
+        Set-Variable -Name $name -Value $value -Scope Global
+        Write-Host "  ✅ Loaded: $name" -ForegroundColor Green
     }
 }
 
-# Build and run production
-function Start-Production {
-    Write-Status "Building and running production version..."
-    
-    # Build the image
-    Write-Status "Building Docker image..."
-    docker-compose build event-app
-    
-    # Run the container
-    Write-Status "Starting production container..."
-    docker-compose up -d event-app
-    
-    Write-Success "Production app is running at http://localhost:3000"
-    Write-Status "To view logs: docker-compose logs -f event-app"
-    Write-Status "To stop: docker-compose down"
+# Validate required environment variables
+$requiredVars = @("VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY")
+$missingVars = @()
+
+foreach ($var in $requiredVars) {
+    if (-not (Get-Variable -Name $var -ErrorAction SilentlyContinue) -or 
+        [string]::IsNullOrEmpty((Get-Variable -Name $var).Value)) {
+        $missingVars += $var
+    }
 }
 
-# Build and run development
-function Start-Development {
-    Write-Status "Building and running development version..."
-    
-    # Build the development image
-    Write-Status "Building development Docker image..."
-    docker-compose --profile dev build event-app-dev
-    
-    # Run the development container
-    Write-Status "Starting development container..."
-    docker-compose --profile dev up -d event-app-dev
-    
-    Write-Success "Development app is running at http://localhost:8080"
-    Write-Status "To view logs: docker-compose --profile dev logs -f event-app-dev"
-    Write-Status "To stop: docker-compose --profile dev down"
+if ($missingVars.Count -gt 0) {
+    Write-Host "❌ Error: Missing required environment variables:" -ForegroundColor Red
+    foreach ($var in $missingVars) {
+        Write-Host "  - $var" -ForegroundColor Red
+    }
+    exit 1
 }
 
-# Main script
-function Main {
-    Write-Status "Event Registration App Docker Runner"
-    Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host "✅ All required environment variables are set!" -ForegroundColor Green
+
+switch ($Action.ToLower()) {
+    "deploy" {
+        Write-Host "🐳 Building and deploying application..." -ForegroundColor Blue
+        
+        # Stop existing containers
+        Write-Host "🛑 Stopping existing containers..." -ForegroundColor Yellow
+        docker-compose down 2>$null
+        
+        # Build with environment variables
+        Write-Host "🔨 Building Docker image with environment variables..." -ForegroundColor Yellow
+        docker-compose build --no-cache
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Build failed!" -ForegroundColor Red
+            exit 1
+        }
+        
+        # Start containers
+        Write-Host "🚀 Starting containers..." -ForegroundColor Yellow
+        docker-compose up -d
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to start containers!" -ForegroundColor Red
+            exit 1
+        }
+        
+        # Wait for container to be ready
+        Write-Host "⏳ Waiting for application to start..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 10
+        
+        # Check container status
+        $containerStatus = docker-compose ps --format "table {{.Name}}\t{{.Status}}"
+        Write-Host "📊 Container Status:" -ForegroundColor Blue
+        Write-Host $containerStatus -ForegroundColor Cyan
+        
+        Write-Host ""
+        Write-Host "🎉 Deployment successful!" -ForegroundColor Green
+        Write-Host "🌐 Application URL: http://localhost:$Port" -ForegroundColor Cyan
+        Write-Host "🔧 Admin Dashboard: http://localhost:$Port/admin" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "📝 Useful commands:" -ForegroundColor Yellow
+        Write-Host "  docker-compose logs -f    # View logs" -ForegroundColor White
+        Write-Host "  docker-compose down       # Stop application" -ForegroundColor White
+        Write-Host "  docker-compose restart    # Restart application" -ForegroundColor White
+    }
     
-    # Check prerequisites
-    if (-not (Test-Docker)) {
+    "stop" {
+        Write-Host "🛑 Stopping application..." -ForegroundColor Yellow
+        docker-compose down
+        Write-Host "✅ Application stopped!" -ForegroundColor Green
+    }
+    
+    "restart" {
+        Write-Host "🔄 Restarting application..." -ForegroundColor Yellow
+        docker-compose restart
+        Write-Host "✅ Application restarted!" -ForegroundColor Green
+    }
+    
+    "logs" {
+        Write-Host "📋 Showing application logs..." -ForegroundColor Yellow
+        docker-compose logs -f
+    }
+    
+    "status" {
+        Write-Host "📊 Application status:" -ForegroundColor Yellow
+        docker-compose ps
+    }
+    
+    "rebuild" {
+        Write-Host "🔨 Rebuilding application..." -ForegroundColor Yellow
+        docker-compose down
+        docker-compose build --no-cache
+        docker-compose up -d
+        Write-Host "✅ Application rebuilt and started!" -ForegroundColor Green
+    }
+    
+    default {
+        Write-Host "❌ Unknown action: $Action" -ForegroundColor Red
+        Write-Host "Available actions: deploy, stop, restart, logs, status, rebuild" -ForegroundColor Yellow
         exit 1
     }
-    
-    Test-EnvFile
-    
-    # Parse command line arguments
-    switch ($Mode) {
-        { $_ -in @("dev", "development") } {
-            Start-Development
-        }
-        { $_ -in @("prod", "production") } {
-            Start-Production
-        }
-        default {
-            Write-Error "Invalid option. Use 'dev' or 'prod'"
-            Write-Host "Usage: .\docker-run.ps1 [dev|prod]"
-            exit 1
-        }
-    }
-}
-
-# Run main function
-Main 
+} 
