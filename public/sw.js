@@ -6,9 +6,7 @@ const OFFLINE_CACHE = 'offline-checkin-v1';
 const CACHE_URLS = [
   '/',
   '/admin/scanner',
-  '/admin/registrations',
-  '/static/js/qr-scanner.js',
-  '/static/js/offline-manager.js'
+  '/admin/registrations'
 ];
 
 // Install event - cache essential resources
@@ -19,7 +17,15 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Service Worker: Caching essential resources');
-        return cache.addAll(CACHE_URLS);
+        // Cache resources one by one to avoid failures
+        return Promise.allSettled(
+          CACHE_URLS.map(url => 
+            cache.add(url).catch(error => {
+              console.warn('Service Worker: Failed to cache', url, error);
+              return null;
+            })
+          )
+        );
       })
       .then(() => {
         console.log('Service Worker: Installation complete');

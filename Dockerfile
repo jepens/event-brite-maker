@@ -33,6 +33,16 @@ COPY --from=builder /app/dist .
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Create a script to replace environment variables at runtime
+RUN echo '#!/bin/sh' > /docker-entrypoint.d/30-env-replace.sh && \
+    echo 'if [ -n "$VITE_SUPABASE_URL" ]; then' >> /docker-entrypoint.d/30-env-replace.sh && \
+    echo '  sed -i "s|https://placeholder.supabase.co|$VITE_SUPABASE_URL|g" /usr/share/nginx/html/assets/*.js' >> /docker-entrypoint.d/30-env-replace.sh && \
+    echo 'fi' >> /docker-entrypoint.d/30-env-replace.sh && \
+    echo 'if [ -n "$VITE_SUPABASE_ANON_KEY" ]; then' >> /docker-entrypoint.d/30-env-replace.sh && \
+    echo '  sed -i "s|placeholder-key|$VITE_SUPABASE_ANON_KEY|g" /usr/share/nginx/html/assets/*.js' >> /docker-entrypoint.d/30-env-replace.sh && \
+    echo 'fi' >> /docker-entrypoint.d/30-env-replace.sh && \
+    chmod +x /docker-entrypoint.d/30-env-replace.sh
+
 # Expose port 80
 EXPOSE 80
 
