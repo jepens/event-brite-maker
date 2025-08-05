@@ -2,24 +2,35 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, XCircle, Clock, QrCode, Mail, Trash2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { CheckCircle, XCircle, Clock, QrCode, Mail, Trash2, Edit } from 'lucide-react';
 import { Registration } from './types';
 import { formatDateForDisplay, formatTimeForDisplay24 } from '@/lib/date-utils';
 
 interface RegistrationTableProps {
   registrations: Registration[];
-  onUpdateStatus: (registrationId: string, status: 'approved' | 'rejected') => void;
+  selectedRegistrations: string[];
+  onSelectionChange: (registrationId: string, selected: boolean) => void;
+  onSelectAll: (selected: boolean) => void;
+  onUpdateStatus: (registrationId: string, status: 'approved' | 'rejected', notificationOptions?: { sendEmail: boolean; sendWhatsApp: boolean }) => void;
   onViewTicket: (registration: Registration) => void;
   onResendEmail: (registration: Registration) => void;
   onDeleteRegistration: (registration: Registration) => void;
+  onShowApproveDialog: (registration: Registration) => void;
+  onEditParticipant: (registration: Registration) => void;
 }
 
 export function RegistrationTable({
   registrations,
+  selectedRegistrations,
+  onSelectionChange,
+  onSelectAll,
   onUpdateStatus,
   onViewTicket,
   onResendEmail,
   onDeleteRegistration,
+  onShowApproveDialog,
+  onEditParticipant,
 }: RegistrationTableProps) {
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -47,6 +58,12 @@ export function RegistrationTable({
     }
   };
 
+  // Get pending registrations for select all functionality
+  const pendingRegistrations = registrations.filter(reg => reg.status === 'pending');
+  const selectedPendingCount = selectedRegistrations.filter(id => 
+    registrations.find(reg => reg.id === id)?.status === 'pending'
+  ).length;
+
   if (registrations.length === 0) {
     return (
       <Card>
@@ -68,17 +85,32 @@ export function RegistrationTable({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={pendingRegistrations.length > 0 && selectedPendingCount === pendingRegistrations.length}
+                  onCheckedChange={(checked) => onSelectAll(checked as boolean)}
+                  disabled={pendingRegistrations.length === 0}
+                />
+              </TableHead>
               <TableHead>Participant</TableHead>
               <TableHead>Event</TableHead>
               <TableHead>Registration Date</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>WhatsApp</TableHead>
+                             <TableHead>Email</TableHead>
+               <TableHead>WhatsApp</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {registrations.map((registration) => (
               <TableRow key={registration.id}>
+                <TableCell>
+                  <Checkbox
+                    checked={selectedRegistrations.includes(registration.id)}
+                    onCheckedChange={(checked) => onSelectionChange(registration.id, checked as boolean)}
+                    disabled={registration.status !== 'pending'}
+                  />
+                </TableCell>
                 <TableCell>
                   <div>
                     <div className="font-medium">{registration.participant_name}</div>
@@ -99,33 +131,77 @@ export function RegistrationTable({
                     {getStatusBadge(registration.status)}
                   </div>
                 </TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    {registration.phone_number ? (
-                      <div className="text-sm">
-                        <span className="font-medium">📱 {registration.phone_number}</span>
-                        {typeof registration.events === 'object' && registration.events && 'whatsapp_enabled' in registration.events && (registration.events as Record<string, unknown>).whatsapp_enabled && (
-                          <div className="text-xs text-muted-foreground">
-                            {registration.tickets?.[0]?.whatsapp_sent ? (
-                              <span className="text-green-600">✓ Sent</span>
-                            ) : (
-                              <span className="text-orange-600">⏳ Pending</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Not provided</span>
-                    )}
-                  </div>
-                </TableCell>
+                                 <TableCell>
+                   <div className="flex flex-col gap-1">
+                     <div className="text-sm">
+                       <span className="font-medium">📧 {registration.participant_email}</span>
+                       <div className="text-xs text-muted-foreground">
+                         {registration.tickets?.[0]?.email_sent ? (
+                           <span className="text-green-600 flex items-center gap-1">
+                             <span>✓</span>
+                             <span>Sent</span>
+                             {registration.tickets[0].email_sent_at && (
+                               <span className="text-xs">
+                                 ({new Date(registration.tickets[0].email_sent_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})
+                               </span>
+                             )}
+                           </span>
+                         ) : (
+                           <span className="text-orange-600 flex items-center gap-1">
+                             <span>⏳</span>
+                             <span>Pending</span>
+                           </span>
+                         )}
+                       </div>
+                     </div>
+                   </div>
+                 </TableCell>
+                 <TableCell>
+                   <div className="flex flex-col gap-1">
+                     {registration.phone_number ? (
+                       <div className="text-sm">
+                         <span className="font-medium">📱 {registration.phone_number}</span>
+                         {typeof registration.events === 'object' && registration.events && 'whatsapp_enabled' in registration.events && (registration.events as Record<string, unknown>).whatsapp_enabled && (
+                           <div className="text-xs text-muted-foreground">
+                             {registration.tickets?.[0]?.whatsapp_sent ? (
+                               <span className="text-green-600 flex items-center gap-1">
+                                 <span>✓</span>
+                                 <span>Sent</span>
+                                 {registration.tickets[0].whatsapp_sent_at && (
+                                   <span className="text-xs">
+                                     ({new Date(registration.tickets[0].whatsapp_sent_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})
+                                   </span>
+                                 )}
+                               </span>
+                             ) : (
+                               <span className="text-orange-600 flex items-center gap-1">
+                                 <span>⏳</span>
+                                 <span>Pending</span>
+                               </span>
+                             )}
+                           </div>
+                         )}
+                       </div>
+                     ) : (
+                       <span className="text-xs text-muted-foreground">Not provided</span>
+                     )}
+                   </div>
+                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onEditParticipant(registration)}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
                     {registration.status === 'pending' ? (
                       <>
                         <Button
                           size="sm"
-                          onClick={() => onUpdateStatus(registration.id, 'approved')}
+                          onClick={() => onShowApproveDialog(registration)}
                         >
                           Approve
                         </Button>

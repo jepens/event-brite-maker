@@ -2,11 +2,21 @@
 -- Migration: 20250101000001-add-checkin-tracking.sql
 
 -- Add check-in tracking columns to tickets table
-ALTER TABLE public.tickets 
-ADD COLUMN checkin_at TIMESTAMP WITH TIME ZONE,
-ADD COLUMN checkin_by UUID REFERENCES auth.users(id),
-ADD COLUMN checkin_location TEXT,
-ADD COLUMN checkin_notes TEXT;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tickets' AND column_name = 'checkin_at') THEN
+        ALTER TABLE public.tickets ADD COLUMN checkin_at TIMESTAMP WITH TIME ZONE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tickets' AND column_name = 'checkin_by') THEN
+        ALTER TABLE public.tickets ADD COLUMN checkin_by UUID REFERENCES auth.users(id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tickets' AND column_name = 'checkin_location') THEN
+        ALTER TABLE public.tickets ADD COLUMN checkin_location TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tickets' AND column_name = 'checkin_notes') THEN
+        ALTER TABLE public.tickets ADD COLUMN checkin_notes TEXT;
+    END IF;
+END $$;
 
 -- Add index for check-in queries
 CREATE INDEX IF NOT EXISTS idx_tickets_checkin_at ON public.tickets(checkin_at);

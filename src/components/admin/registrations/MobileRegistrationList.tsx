@@ -8,11 +8,12 @@ import { Search, Filter, Download } from 'lucide-react';
 
 interface MobileRegistrationListProps {
   registrations: Registration[];
-  onUpdateStatus: (registrationId: string, status: 'approved' | 'rejected') => void;
+  onUpdateStatus: (registrationId: string, status: 'approved' | 'rejected', notificationOptions?: { sendEmail: boolean; sendWhatsApp: boolean }) => void;
   onViewTicket: (registration: Registration) => void;
   onResendEmail: (registration: Registration) => void;
   onDeleteRegistration: (registration: Registration) => void;
   onDownloadRegistrations?: () => void;
+  onShowApproveDialog: (registration: Registration) => void;
 }
 
 export function MobileRegistrationList({
@@ -22,6 +23,7 @@ export function MobileRegistrationList({
   onResendEmail,
   onDeleteRegistration,
   onDownloadRegistrations,
+  onShowApproveDialog,
 }: MobileRegistrationListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -38,7 +40,7 @@ export function MobileRegistrationList({
   });
 
   const handleApprove = (registration: Registration) => {
-    onUpdateStatus(registration.id, 'approved');
+    onShowApproveDialog(registration);
   };
 
   const handleReject = (registration: Registration) => {

@@ -58,11 +58,34 @@ export class OfflineManager {
   constructor() {
     this.initDatabase();
     this.setupNetworkListeners();
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      this.closeDatabase();
+    });
+  }
+
+  // Close database connection
+  private async closeDatabase() {
+    if (this.db) {
+      try {
+        this.db.close();
+        console.log('Offline Manager: Database closed');
+      } catch (error) {
+        console.error('Offline Manager: Error closing database', error);
+      }
+    }
+    this.db = null;
   }
 
   // Initialize IndexedDB
   private async initDatabase() {
     try {
+      // If database already exists, return early
+      if (this.db) {
+        return;
+      }
+
       this.db = await openDB('offline-checkin-db', 1, {
         upgrade(db) {
           // Create checkins store
@@ -74,10 +97,18 @@ export class OfflineManager {
           const ticketsStore = db.createObjectStore('tickets', { keyPath: 'id' });
           ticketsStore.createIndex('by-event', 'eventId');
         },
+        blocked() {
+          console.warn('Offline Manager: Database upgrade blocked');
+        },
+        blocking() {
+          console.warn('Offline Manager: Database upgrade blocking');
+        },
       });
       console.log('Offline Manager: Database initialized');
     } catch (error) {
       console.error('Offline Manager: Database initialization failed', error);
+      this.db = null;
+      throw error;
     }
   }
 
@@ -291,6 +322,17 @@ export class OfflineManager {
     unsynced: number;
     lastSync?: number;
   }> {
+    // Wait for database to be initialized
+    if (!this.db) {
+      try {
+        await this.initDatabase();
+      } catch (error) {
+        console.error('Failed to initialize database for sync status:', error);
+        return { total: 0, synced: 0, unsynced: 0 };
+      }
+    }
+
+    // Check if database is still null after initialization
     if (!this.db) {
       return { total: 0, synced: 0, unsynced: 0 };
     }
@@ -310,6 +352,18 @@ export class OfflineManager {
       };
     } catch (error) {
       console.error('Error getting sync status:', error);
+      
+      // If it's a connection error, try to reinitialize
+      if (error instanceof Error && error.name === 'InvalidStateError') {
+        console.warn('Database connection error, attempting to reinitialize...');
+        try {
+          this.db = null;
+          await this.initDatabase();
+        } catch (reinitError) {
+          console.error('Failed to reinitialize database:', reinitError);
+        }
+      }
+      
       return { total: 0, synced: 0, unsynced: 0 };
     }
   }
@@ -326,7 +380,11 @@ export class OfflineManager {
     };
   }> {
     if (!this.db) {
-      return { checkins: [], tickets: [], syncStatus: {} };
+      return { 
+        checkins: [], 
+        tickets: [], 
+        syncStatus: { total: 0, synced: 0, unsynced: 0 }
+      };
     }
 
     const checkins = await this.db.getAll('checkins');

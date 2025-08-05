@@ -35,8 +35,8 @@ const handler = async (req) => {
   }
 
   try {
-    // Parse the request body to extract registration_id and optional event_logo_url
-    const { registration_id, event_logo_url } = await req.json();
+    // Parse the request body to extract registration_id, optional event_logo_url, and notification options
+    const { registration_id, event_logo_url, notification_options } = await req.json();
     console.log("Starting QR ticket generation for registration:", registration_id);
     console.log("Supabase URL configured:", !!Deno.env.get('SUPABASE_URL'));
     console.log("Service Role Key configured:", !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
@@ -149,35 +149,45 @@ const handler = async (req) => {
     const ticket = ticketData[0];
     console.log("Ticket record created successfully");
 
-    // Send email notification (always required)
-    const emailPayload = {
-      participant_email: registration.participant_email,
-      participant_name: registration.participant_name,
-      event_name: registration.events.name,
-      event_date: registration.events.event_date,
-      event_location: registration.events.location || 'TBA',
-      qr_code_data: qrData,
-      short_code: shortCode,
-      qr_image_url: urlData.publicUrl
-    };
+    // Default notification options if not provided
+    const defaultNotificationOptions = { sendEmail: true, sendWhatsApp: true };
+    const finalNotificationOptions = notification_options || defaultNotificationOptions;
 
-    console.log("Sending email notification with payload:", emailPayload);
+    console.log("Notification options:", finalNotificationOptions);
 
-    // Invoke the 'send-ticket-email' Edge Function to send the email
-    const emailResponse = await supabase.functions.invoke('send-ticket-email', {
-      body: emailPayload
-    });
+    // Send email notification (if enabled)
+    if (finalNotificationOptions.sendEmail && registration.participant_email) {
+      const emailPayload = {
+        participant_email: registration.participant_email,
+        participant_name: registration.participant_name,
+        event_name: registration.events.name,
+        event_date: registration.events.event_date,
+        event_location: registration.events.location || 'TBA',
+        qr_code_data: qrData,
+        short_code: shortCode,
+        qr_image_url: urlData.publicUrl
+      };
 
-    if (emailResponse.error) {
-      console.error('Email sending failed:', emailResponse.error);
-      // Log the error but don't fail the entire process if email sending fails.
-      // The ticket is already generated and stored.
+      console.log("Sending email notification with payload:", emailPayload);
+
+      // Invoke the 'send-ticket-email' Edge Function to send the email
+      const emailResponse = await supabase.functions.invoke('send-ticket-email', {
+        body: emailPayload
+      });
+
+      if (emailResponse.error) {
+        console.error('Email sending failed:', emailResponse.error);
+        // Log the error but don't fail the entire process if email sending fails.
+        // The ticket is already generated and stored.
+      } else {
+        console.log("Email sent successfully");
+      }
     } else {
-      console.log("Email sent successfully");
+      console.log("Email notification skipped (disabled or no email)");
     }
 
     // Send WhatsApp notification (if enabled and phone number provided)
-    if (registration.events?.whatsapp_enabled && registration.phone_number) {
+    if (finalNotificationOptions.sendWhatsApp && registration.events?.whatsapp_enabled && registration.phone_number) {
       console.log("Sending WhatsApp notification for registration:", registration_id);
       
       const whatsappResponse = await supabase.functions.invoke('send-whatsapp-ticket', {
@@ -191,7 +201,7 @@ const handler = async (req) => {
         console.log("WhatsApp sent successfully");
       }
     } else {
-      console.log("WhatsApp not enabled or no phone number provided");
+      console.log("WhatsApp notification skipped (disabled, not enabled, or no phone)");
     }
 
     // Return a success response with ticket details and QR image URL

@@ -7,8 +7,12 @@ import { RegistrationFilters } from './RegistrationFilters';
 import { RegistrationActions } from './RegistrationActions';
 import { RegistrationTable } from './RegistrationTable';
 import { MobileRegistrationList } from './MobileRegistrationList';
+import { Pagination } from './Pagination';
 import { QRDialog } from './QRDialog';
 import { DeleteDialog } from './DeleteDialog';
+import { ApproveDialog, NotificationOptions } from './ApproveDialog';
+import { BatchApproveDialog } from './BatchApproveDialog';
+import { ParticipantDialog } from './ParticipantDialog';
 import { Registration, Ticket } from './types';
 import { useMobile } from '@/hooks/use-mobile';
 
@@ -19,6 +23,7 @@ export function RegistrationsManagement() {
     events,
     updateRegistrationStatus,
     deleteRegistrationById,
+    batchApproveRegistrations,
   } = useRegistrations();
   
   const { isMobile } = useMobile();
@@ -32,6 +37,22 @@ export function RegistrationsManagement() {
   const [registrationToDelete, setRegistrationToDelete] = useState<Registration | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [registrationToApprove, setRegistrationToApprove] = useState<Registration | null>(null);
+  const [approving, setApproving] = useState(false);
+
+  // Batch approve state
+  const [selectedRegistrations, setSelectedRegistrations] = useState<string[]>([]);
+  const [showBatchApproveDialog, setShowBatchApproveDialog] = useState(false);
+  const [batchApproving, setBatchApproving] = useState(false);
+
+  // Participant dialog state
+  const [showParticipantDialog, setShowParticipantDialog] = useState(false);
+  const [participantToEdit, setParticipantToEdit] = useState<Registration | null>(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(30);
 
   // Filter registrations based on search and filters
   const filteredRegistrations = useMemo(() => {
@@ -46,6 +67,90 @@ export function RegistrationsManagement() {
       return matchesSearch && matchesStatus && matchesEvent;
     });
   }, [registrations, searchTerm, statusFilter, eventFilter]);
+
+  // Get selected registrations data
+  const selectedRegistrationsData = useMemo(() => {
+    return registrations.filter(reg => selectedRegistrations.includes(reg.id));
+  }, [registrations, selectedRegistrations]);
+
+  // Get pending registrations count for batch operations
+  const pendingRegistrations = filteredRegistrations.filter(reg => reg.status === 'pending');
+  const selectedPendingCount = selectedRegistrations.filter(id => 
+    registrations.find(reg => reg.id === id)?.status === 'pending'
+  ).length;
+
+  // Pagination logic
+  const totalItems = filteredRegistrations.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRegistrations = filteredRegistrations.slice(startIndex, endIndex);
+
+  // Debug logging
+  console.log('RegistrationsManagement Pagination Debug:', {
+    totalItems,
+    totalPages,
+    currentPage,
+    itemsPerPage,
+    startIndex,
+    endIndex,
+    paginatedRegistrationsLength: paginatedRegistrations.length,
+    filteredRegistrationsLength: filteredRegistrations.length
+  });
+
+  // Reset to first page when filters change
+  const handleFilterChange = (newSearchTerm: string, newStatusFilter: string, newEventFilter: string) => {
+    setSearchTerm(newSearchTerm);
+    setStatusFilter(newStatusFilter);
+    setEventFilter(newEventFilter);
+    setCurrentPage(1); // Reset to first page
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page when changing items per page
+  };
+
+  // Selection handlers
+  const handleSelectionChange = (registrationId: string, selected: boolean) => {
+    setSelectedRegistrations(prev => {
+      if (selected) {
+        return [...prev, registrationId];
+      } else {
+        return prev.filter(id => id !== registrationId);
+      }
+    });
+  };
+
+  const handleSelectAll = (selected: boolean) => {
+    if (selected) {
+      const pendingIds = pendingRegistrations.map(reg => reg.id);
+      setSelectedRegistrations(pendingIds);
+    } else {
+      setSelectedRegistrations([]);
+    }
+  };
+
+  const handleBatchApprove = () => {
+    setShowBatchApproveDialog(true);
+  };
+
+  const handleBatchApproveConfirm = async (registrationIds: string[], notificationOptions: NotificationOptions) => {
+    try {
+      setBatchApproving(true);
+      await batchApproveRegistrations(registrationIds, notificationOptions);
+      setShowBatchApproveDialog(false);
+      setSelectedRegistrations([]); // Clear selection after successful batch approve
+    } catch (error) {
+      console.error('Error batch approving registrations:', error);
+    } finally {
+      setBatchApproving(false);
+    }
+  };
 
   const handleViewTicket = async (registration: Registration) => {
     setSelectedTicket(registration);
@@ -114,6 +219,41 @@ export function RegistrationsManagement() {
     setShowDeleteDialog(true);
   };
 
+  const handleShowApproveDialog = (registration: Registration) => {
+    setRegistrationToApprove(registration);
+    setShowApproveDialog(true);
+  };
+
+  const handleEditParticipant = (registration: Registration) => {
+    setParticipantToEdit(registration);
+    setShowParticipantDialog(true);
+  };
+
+  const handleAddParticipant = () => {
+    setParticipantToEdit(null);
+    setShowParticipantDialog(true);
+  };
+
+  const handleParticipantSuccess = () => {
+    // Refresh registrations
+    window.location.reload();
+  };
+
+  const handleApproveRegistration = async (notificationOptions: NotificationOptions) => {
+    if (!registrationToApprove) return;
+
+    try {
+      setApproving(true);
+      await updateRegistrationStatus(registrationToApprove.id, 'approved', notificationOptions);
+      setShowApproveDialog(false);
+      setRegistrationToApprove(null);
+    } catch (error) {
+      console.error('Error approving registration:', error);
+    } finally {
+      setApproving(false);
+    }
+  };
+
   const handleDownloadRegistrations = async (format: 'csv' | 'excel' = 'csv') => {
     try {
       setDownloading(true);
@@ -146,6 +286,11 @@ export function RegistrationsManagement() {
     handleDownloadRegistrations('csv');
   };
 
+  const handleImportComplete = () => {
+    // Refresh registrations after import
+    window.location.reload();
+  };
+
   const confirmDelete = async () => {
     if (!registrationToDelete) return;
 
@@ -172,39 +317,75 @@ export function RegistrationsManagement() {
           <RegistrationActions
             filteredRegistrationsCount={filteredRegistrations.length}
             downloading={downloading}
+            events={events}
+            currentFilters={{
+              searchTerm,
+              statusFilter,
+              eventFilter
+            }}
             onDownloadCSV={() => handleDownloadRegistrations('csv')}
             onDownloadExcel={() => handleDownloadRegistrations('excel')}
+            onImportComplete={handleImportComplete}
+            onAddParticipant={handleAddParticipant}
+            onBatchApprove={handleBatchApprove}
+            selectedPendingCount={selectedPendingCount}
           />
 
           <RegistrationFilters
             searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
+            setSearchTerm={(term) => handleFilterChange(term, statusFilter, eventFilter)}
             statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
+            setStatusFilter={(status) => handleFilterChange(searchTerm, status, eventFilter)}
             eventFilter={eventFilter}
-            setEventFilter={setEventFilter}
+            setEventFilter={(event) => handleFilterChange(searchTerm, statusFilter, event)}
             events={events}
           />
 
           <RegistrationTable
-            registrations={filteredRegistrations}
+            registrations={paginatedRegistrations}
+            selectedRegistrations={selectedRegistrations}
+            onSelectionChange={handleSelectionChange}
+            onSelectAll={handleSelectAll}
             onUpdateStatus={updateRegistrationStatus}
             onViewTicket={handleViewTicket}
             onResendEmail={handleResendEmail}
             onDeleteRegistration={handleDeleteRegistration}
+            onShowApproveDialog={handleShowApproveDialog}
+            onEditParticipant={handleEditParticipant}
+          />
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+            onItemsPerPageChange={handleItemsPerPageChange}
           />
         </>
       )}
 
       {isMobile && (
-        <MobileRegistrationList
-          registrations={filteredRegistrations}
-          onUpdateStatus={updateRegistrationStatus}
-          onViewTicket={handleViewTicket}
-          onResendEmail={handleResendEmail}
-          onDeleteRegistration={handleDeleteRegistration}
-          onDownloadRegistrations={handleDownloadAll}
-        />
+        <>
+          <MobileRegistrationList
+            registrations={paginatedRegistrations}
+            onUpdateStatus={updateRegistrationStatus}
+            onViewTicket={handleViewTicket}
+            onResendEmail={handleResendEmail}
+            onDeleteRegistration={handleDeleteRegistration}
+            onDownloadRegistrations={handleDownloadAll}
+            onShowApproveDialog={handleShowApproveDialog}
+          />
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+            onItemsPerPageChange={handleItemsPerPageChange}
+          />
+        </>
       )}
 
       <QRDialog
@@ -220,6 +401,36 @@ export function RegistrationsManagement() {
         registrationToDelete={registrationToDelete}
         deleting={deleting}
         onConfirmDelete={confirmDelete}
+      />
+
+      <ApproveDialog
+        registration={registrationToApprove}
+        isOpen={showApproveDialog}
+        onClose={() => {
+          setShowApproveDialog(false);
+          setRegistrationToApprove(null);
+        }}
+        onApprove={handleApproveRegistration}
+        loading={approving}
+      />
+
+      <BatchApproveDialog
+        selectedRegistrations={selectedRegistrationsData}
+        isOpen={showBatchApproveDialog}
+        onClose={() => setShowBatchApproveDialog(false)}
+        onApprove={handleBatchApproveConfirm}
+        loading={batchApproving}
+      />
+
+      <ParticipantDialog
+        open={showParticipantDialog}
+        onOpenChange={(open) => {
+          setShowParticipantDialog(open);
+          if (!open) setParticipantToEdit(null);
+        }}
+        participant={participantToEdit}
+        events={events}
+        onSuccess={handleParticipantSuccess}
       />
     </div>
   );

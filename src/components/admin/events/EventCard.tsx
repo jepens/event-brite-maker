@@ -84,6 +84,16 @@ export function EventCard({ event, onEdit, onDelete }: EventCardProps) {
                 📱 WhatsApp Enabled
               </Badge>
             )}
+            {event.registration_status === 'closed' && (
+              <Badge variant="destructive" className="bg-red-100 text-red-800">
+                🔒 Registration Closed
+              </Badge>
+            )}
+            {event.registration_status === 'open' && (
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                ✅ Registration Open
+              </Badge>
+            )}
             {event.custom_fields && event.custom_fields.length > 0 && (
               <Badge variant="outline">
                 {event.custom_fields.length} Custom Fields

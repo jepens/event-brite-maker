@@ -20,7 +20,7 @@ const handler = async (req)=>{
   }
   try {
     // Parse the request body to extract necessary email parameters
-    const { participant_email, participant_name, event_name, event_date, event_location, qr_code_data, qr_image_url, short_code } = await req.json();
+    const { registration_id, participant_email, participant_name, event_name, event_date, event_location, qr_code_data, qr_image_url, short_code } = await req.json();
     // Log parameters for debugging purposes
     console.log("Starting email send process");
     console.log("Email parameters:", {
@@ -171,6 +171,38 @@ This is an automated email. Please do not reply to this message.
       }
       throw new Error(`Failed to send email: ${emailResponse.error.message || 'Unknown error'}`);
     }
+
+    // Update ticket record to mark email as sent
+    if (registration_id) {
+      try {
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        
+        if (supabaseUrl && supabaseServiceKey) {
+          const supabase = createClient(supabaseUrl, supabaseServiceKey);
+          
+          const { error: updateError } = await supabase
+            .from('tickets')
+            .update({
+              email_sent: true,
+              email_sent_at: new Date().toISOString()
+            })
+            .eq('registration_id', registration_id);
+          
+          if (updateError) {
+            console.error('Error updating ticket email status:', updateError);
+            // Don't fail the whole process if update fails
+          } else {
+            console.log('Email status updated successfully for registration:', registration_id);
+          }
+        }
+      } catch (updateError) {
+        console.error('Error updating email status:', updateError);
+        // Don't fail the whole process if update fails
+      }
+    }
+
     // Log success and return a success response
     console.log("Email sent successfully:", emailResponse.data);
     return new Response(JSON.stringify({

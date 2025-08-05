@@ -112,9 +112,9 @@ export function RegistrationForm({
           await checkEmailExists(email);
           setEmailValidated(true);
           
-          // Cache the result
+          // Cache the result - don't use emailExists state here to avoid infinite loop
           localStorage.setItem(cacheKey, JSON.stringify({
-            result: emailExists, // Use current emailExists state
+            result: false, // We'll let the parent component handle the actual result
             timestamp: Date.now()
           }));
         }
@@ -128,7 +128,7 @@ export function RegistrationForm({
         clearTimeout(emailValidationTimeout);
       }
     };
-  }, [email, checkEmailExists, emailValidationTimeout, emailExists]);
+  }, [email, checkEmailExists]); // Removed emailValidationTimeout to prevent infinite loop
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value;
@@ -285,7 +285,7 @@ export function RegistrationForm({
         clearTimeout(whatsappValidationTimeout);
       }
     };
-  }, [memberNumberValidationTimeouts, whatsappValidationTimeout]);
+  }, []); // Empty dependency array - only run on unmount
 
   return (
     <div className="space-y-6">

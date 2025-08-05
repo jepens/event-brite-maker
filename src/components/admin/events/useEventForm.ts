@@ -151,6 +151,7 @@ export function useEventForm(event: Event | null, onSuccess: () => void) {
       const max_participants = parseInt(formData.get('max_participants') as string);
       const dresscode = formData.get('dresscode') as string;
       const whatsapp_enabled = formData.get('whatsapp_enabled') === 'on';
+      const registration_status = formData.get('registration_status') === 'on' ? 'open' : 'closed';
 
       // Validate required fields
       if (!name?.trim() || !description?.trim() || !event_date || !location?.trim()) {
@@ -200,6 +201,7 @@ export function useEventForm(event: Event | null, onSuccess: () => void) {
         max_participants,
         dresscode: dresscode?.trim() || null,
         whatsapp_enabled,
+        registration_status,
         branding_config,
         custom_fields: validCustomFields,
         created_by: user.id,

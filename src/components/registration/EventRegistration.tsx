@@ -90,6 +90,25 @@ export function EventRegistration() {
     return <SuccessView eventName={event.name} />;
   }
 
+  // Check if registration is closed
+  if (event.registration_status === 'closed') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-6">
+        <div className="text-center space-y-8 max-w-md">
+          <div className="space-y-4">
+            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-10 h-10 text-red-600" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold text-gray-900">Registration Closed</h1>
+              <p className="text-gray-600 text-lg">Registration for this event is currently closed. Please check back later or contact the event organizer.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* Main Container with improved spacing */}

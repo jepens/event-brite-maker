@@ -6,6 +6,8 @@ export interface Ticket {
   status: 'unused' | 'used';
   whatsapp_sent?: boolean;
   whatsapp_sent_at?: string;
+  email_sent?: boolean;
+  email_sent_at?: string;
   issued_at: string;
 }
 
@@ -16,6 +18,7 @@ export interface Registration {
   phone_number?: string;
   status: 'pending' | 'approved' | 'rejected';
   registered_at: string;
+  updated_at?: string;
   custom_data: Record<string, unknown>;
   event_id: string;
   events: {

@@ -215,7 +215,8 @@ export function useOptimizedRegistrations(eventId?: string, status?: string) {
       registered_at,
       events (
         id,
-        name
+        name,
+        whatsapp_enabled
       ),
       tickets (
         id,

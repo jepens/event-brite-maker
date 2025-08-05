@@ -9,6 +9,7 @@ export interface Event {
   custom_fields: CustomField[];
   whatsapp_enabled?: boolean;
   dresscode?: string;
+  registration_status?: 'open' | 'closed';
 }
 
 export interface CustomField {

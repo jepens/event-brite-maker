@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,7 @@ import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { downloadCheckinReport } from '@/lib/download-service';
 import { formatDateTimeForDisplay } from '@/lib/date-utils';
-import { useCache } from '@/lib/cache-manager';
+import { cacheManager } from '@/lib/cache-manager';
 
 interface CheckinStats {
   event_id: string;
@@ -68,14 +68,16 @@ export function CheckinReport() {
   const [pageSize, setPageSize] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
   
-  // Cache manager
-  const { getCache, setCache } = useCache();
+  // Cache manager - use singleton instance directly
+  const fetchStatsRef = useRef<() => Promise<void>>();
+  const fetchReportDataRef = useRef<() => Promise<void>>();
+  const fetchEventsRef = useRef<() => Promise<void>>();
 
   const fetchStats = useCallback(async () => {
     try {
       // Check cache first for statistics
       const cacheKey = `checkin_stats_${eventFilter}`;
-      const cachedStats = getCache<CheckinStats[]>(cacheKey, {
+      const cachedStats = cacheManager.get<CheckinStats[]>(cacheKey, {
         ttl: 5 * 60 * 1000 // 5 minutes cache for statistics
       });
       
@@ -97,7 +99,7 @@ export function CheckinReport() {
       setStats(statsData);
       
       // Cache the results
-      setCache(cacheKey, statsData, {
+      cacheManager.set(cacheKey, statsData, {
         ttl: 5 * 60 * 1000 // 5 minutes
       });
       
@@ -109,7 +111,10 @@ export function CheckinReport() {
         variant: 'destructive',
       });
     }
-  }, [eventFilter, getCache, setCache]);
+  }, [eventFilter]);
+
+  // Store the function reference
+  fetchStatsRef.current = fetchStats;
 
   const fetchReportData = useCallback(async () => {
     try {
@@ -176,11 +181,14 @@ export function CheckinReport() {
     }
   }, [eventFilter, currentPage, pageSize]);
 
+  // Store the function reference
+  fetchReportDataRef.current = fetchReportData;
+
   const fetchEvents = useCallback(async () => {
     try {
       // Check cache first for events list
       const cacheKey = 'events_list';
-      const cachedEvents = getCache<{ id: string; name: string }[]>(cacheKey, {
+      const cachedEvents = cacheManager.get<{ id: string; name: string }[]>(cacheKey, {
         ttl: 30 * 60 * 1000 // 30 minutes cache for events list
       });
       
@@ -202,27 +210,30 @@ export function CheckinReport() {
       setEvents(eventsData);
       
       // Cache the results
-      setCache(cacheKey, eventsData, {
+      cacheManager.set(cacheKey, eventsData, {
         ttl: 30 * 60 * 1000 // 30 minutes
       });
       
     } catch (error) {
       console.error('Error fetching events:', error);
     }
-  }, [getCache, setCache]);
+  }, []);
+
+  // Store the function reference
+  fetchEventsRef.current = fetchEvents;
 
   // Initialize data on component mount
   useEffect(() => {
-    fetchStats();
-    fetchReportData();
-    fetchEvents();
+    if (fetchStatsRef.current) fetchStatsRef.current();
+    if (fetchReportDataRef.current) fetchReportDataRef.current();
+    if (fetchEventsRef.current) fetchEventsRef.current();
   }, []); // Only run once on mount
 
   // Refetch when filters or pagination change
   useEffect(() => {
-    fetchStats();
-    fetchReportData();
-  }, [eventFilter, currentPage, pageSize]);
+    if (fetchStatsRef.current) fetchStatsRef.current();
+    if (fetchReportDataRef.current) fetchReportDataRef.current();
+  }, [eventFilter, currentPage, pageSize]); // Only depend on the actual changing values
 
   // Reset pagination when filter changes
   useEffect(() => {

@@ -9,6 +9,7 @@ export interface Event {
   branding_config: Record<string, unknown>;
   custom_fields: CustomField[];
   whatsapp_enabled?: boolean;
+  registration_status?: 'open' | 'closed';
 }
 
 export interface CustomField {
@@ -34,4 +35,5 @@ export interface EventFormData {
   whatsapp_enabled: boolean;
   branding_config: Record<string, unknown>;
   custom_fields: CustomField[];
+  registration_status: 'open' | 'closed';
 } 

@@ -1,5 +1,10 @@
 -- Add dresscode column to events table
-ALTER TABLE public.events ADD COLUMN dresscode TEXT;
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'events' AND column_name = 'dresscode') THEN
+        ALTER TABLE public.events ADD COLUMN dresscode TEXT;
+    END IF;
+END $$;
 
 -- Add comment to explain the dresscode column
 COMMENT ON COLUMN public.events.dresscode IS 'Dresscode for the event (e.g., "Smart Casual", "Formal", "Casual")';

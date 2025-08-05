@@ -107,6 +107,18 @@ export function EventForm({ event, submitting, onSubmit }: EventFormProps) {
             />
             <Label htmlFor="whatsapp_enabled">Enable WhatsApp notifications</Label>
           </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="registration_status"
+              name="registration_status"
+              defaultChecked={event?.registration_status !== 'closed'}
+            />
+            <Label htmlFor="registration_status">Open Registration</Label>
+            <div className="text-sm text-muted-foreground ml-2">
+              {event?.registration_status !== 'closed' ? 'Users can register for this event' : 'Registration is closed'}
+            </div>
+          </div>
         </CardContent>
       </Card>
 

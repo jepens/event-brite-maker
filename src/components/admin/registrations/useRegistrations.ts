@@ -36,7 +36,8 @@ export function useRegistrations() {
           event_id,
           events (
             id,
-            name
+            name,
+            whatsapp_enabled
           )
         `)
         .order('registered_at', { ascending: false });
@@ -64,7 +65,11 @@ export function useRegistrations() {
               short_code,
               status,
               checkin_at,
-              checkin_location
+              checkin_location,
+              whatsapp_sent,
+              whatsapp_sent_at,
+              email_sent,
+              email_sent_at
             `)
             .eq('registration_id', registration.id);
 
@@ -76,7 +81,7 @@ export function useRegistrations() {
           return { 
             ...registration, 
             tickets: ticketsData || [],
-            events: Array.isArray(registration.events) ? registration.events[0] || null : registration.events
+            events: registration.events
           };
         })
       );
@@ -108,7 +113,7 @@ export function useRegistrations() {
     }
   };
 
-  const updateRegistrationStatus = async (registrationId: string, status: 'approved' | 'rejected') => {
+  const updateRegistrationStatus = async (registrationId: string, status: 'approved' | 'rejected', notificationOptions?: { sendEmail: boolean; sendWhatsApp: boolean }) => {
     try {
       const { error } = await supabase
         .from('registrations')
@@ -131,13 +136,16 @@ export function useRegistrations() {
         description: `Registration ${status} successfully`,
       });
 
-      // If status is approved, generate QR ticket and send notifications
+      // If status is approved, generate QR ticket and send notifications based on options
       if (status === 'approved') {
         try {
           console.log('Generating QR ticket for approved registration:', registrationId);
           
           const { data: qrData, error: qrError } = await supabase.functions.invoke('generate-qr-ticket', {
-            body: { registration_id: registrationId }
+            body: { 
+              registration_id: registrationId,
+              notification_options: notificationOptions || { sendEmail: true, sendWhatsApp: true }
+            }
           });
 
           if (qrError) {
@@ -149,10 +157,23 @@ export function useRegistrations() {
             });
           } else {
             console.log('QR ticket generated successfully:', qrData);
+            
+            // Show success message based on notification options
+            const notifications = [];
+            if (notificationOptions?.sendEmail) notifications.push('Email');
+            if (notificationOptions?.sendWhatsApp) notifications.push('WhatsApp');
+            
+            const notificationText = notifications.length > 0 
+              ? ` and ${notifications.join(' & ')} sent` 
+              : ' (no notifications sent)';
+            
             toast({
               title: 'Success',
-              description: 'Registration approved and ticket generated successfully!',
+              description: `Registration approved and ticket generated successfully!${notificationText}`,
             });
+            
+            // Refresh registrations immediately to get updated WhatsApp status
+            await fetchRegistrations();
           }
         } catch (qrError) {
           console.error('Error calling generate-qr-ticket function:', qrError);
@@ -201,12 +222,111 @@ export function useRegistrations() {
     }
   };
 
+  const batchApproveRegistrations = async (registrationIds: string[], notificationOptions?: { sendEmail: boolean; sendWhatsApp: boolean }) => {
+    try {
+      // Update all registrations status to approved
+      const { error: updateError } = await supabase
+        .from('registrations')
+        .update({ status: 'approved' })
+        .in('id', registrationIds);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setRegistrations(prev => 
+        prev.map(reg => 
+          registrationIds.includes(reg.id) 
+            ? { ...reg, status: 'approved' }
+            : reg
+        )
+      );
+
+      toast({
+        title: 'Success',
+        description: `${registrationIds.length} registration${registrationIds.length > 1 ? 's' : ''} approved successfully`,
+      });
+
+      // Generate QR tickets and send notifications for each approved registration
+      if (notificationOptions && (notificationOptions.sendEmail || notificationOptions.sendWhatsApp)) {
+        const results = await Promise.allSettled(
+          registrationIds.map(async (registrationId) => {
+            try {
+              console.log('Generating QR ticket for batch approved registration:', registrationId);
+              
+              const { data: qrData, error: qrError } = await supabase.functions.invoke('generate-qr-ticket', {
+                body: { 
+                  registration_id: registrationId,
+                  notification_options: notificationOptions
+                }
+              });
+
+              if (qrError) {
+                console.error('Error generating QR ticket for registration:', registrationId, qrError);
+                return { success: false, registrationId, error: qrError };
+              } else {
+                console.log('QR ticket generated successfully for registration:', registrationId, qrData);
+                return { success: true, registrationId };
+              }
+            } catch (error) {
+              console.error('Error calling generate-qr-ticket function for registration:', registrationId, error);
+              return { success: false, registrationId, error };
+            }
+          })
+        );
+
+        // Count successes and failures
+        const successful = results.filter(result => 
+          result.status === 'fulfilled' && result.value.success
+        ).length;
+        const failed = results.length - successful;
+
+        // Show summary toast
+        if (successful > 0 && failed === 0) {
+          const notifications = [];
+          if (notificationOptions.sendEmail) notifications.push('Email');
+          if (notificationOptions.sendWhatsApp) notifications.push('WhatsApp');
+          
+          const notificationText = notifications.length > 0 
+            ? ` and ${notifications.join(' & ')} sent` 
+            : ' (no notifications sent)';
+          
+          toast({
+            title: 'Success',
+            description: `All ${successful} tickets generated successfully!${notificationText}`,
+          });
+        } else if (successful > 0 && failed > 0) {
+          toast({
+            title: 'Partial Success',
+            description: `${successful} tickets generated successfully, ${failed} failed. Check logs for details.`,
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Warning',
+            description: 'Registrations approved but failed to generate tickets. Please try again.',
+            variant: 'destructive',
+          });
+        }
+      }
+
+      // Refresh registrations to get updated data
+      await fetchRegistrations();
+    } catch (error) {
+      console.error('Error batch approving registrations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to approve registrations',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return {
     registrations,
     loading,
     events,
-    fetchRegistrations,
     updateRegistrationStatus,
     deleteRegistrationById,
+    batchApproveRegistrations,
   };
 } 
