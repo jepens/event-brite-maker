@@ -42,6 +42,7 @@ export function DeleteDialog({
               <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                 <li>Delete the registration record</li>
                 <li>Delete all associated tickets</li>
+                <li>Remove QR code images from storage</li>
                 <li>Remove all related data permanently</li>
               </ul>
             </div>

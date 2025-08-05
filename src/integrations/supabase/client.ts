@@ -48,7 +48,7 @@ export async function deleteQRCodeFiles(registrationId: string) {
     // Get all tickets for this registration to find QR code files
     const { data: tickets, error: ticketsError } = await supabase
       .from('tickets')
-      .select('id, short_code')
+      .select('id, qr_image_url')
       .eq('registration_id', registrationId);
 
     if (ticketsError) {
@@ -65,9 +65,16 @@ export async function deleteQRCodeFiles(registrationId: string) {
     const deletedFiles = [];
     for (const ticket of tickets) {
       try {
-        // Try to delete QR code file using short_code if available, otherwise use ticket ID
-        const fileName = ticket.short_code ? `qr-${ticket.short_code}` : `qr-${ticket.id}`;
-        const filePath = `qr-codes/${fileName}.png`;
+        if (!ticket.qr_image_url) {
+          console.log('No QR image URL found for ticket:', ticket.id);
+          continue;
+        }
+
+        // Extract filename from qr_image_url
+        // URL format: https://mjolfjoqfnszvvlbzhjn.supabase.co/storage/v1/object/public/event-logos/qr-codes/qr-b26a4ac4-ff89-4a17-987e-67850cdeaf44-1754413043808.png
+        const urlParts = ticket.qr_image_url.split('/');
+        const fileName = urlParts[urlParts.length - 1]; // Get the last part (filename)
+        const filePath = `qr-codes/${fileName}`;
         
         console.log('Attempting to delete QR file:', filePath);
         
