@@ -1,5 +1,4 @@
-import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { ConnectionError } from '@/components/ui/connection-error';
 
 interface ErrorStateProps {
   error: Error;
@@ -8,14 +7,15 @@ interface ErrorStateProps {
 
 export function ErrorState({ error, onRetry }: ErrorStateProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
-        <p className="text-muted-foreground mb-4">{error.message}</p>
-        <Button onClick={onRetry} className="gap-2">
-          <RefreshCw className="h-4 w-4" />
-          Try Again
-        </Button>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="max-w-md w-full mx-4">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold mb-2">Oops! Something went wrong</h1>
+          <p className="text-muted-foreground">
+            We encountered an issue while loading your dashboard
+          </p>
+        </div>
+        <ConnectionError error={error} onRetry={onRetry} />
       </div>
     </div>
   );

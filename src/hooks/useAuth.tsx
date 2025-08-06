@@ -102,22 +102,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         const connectionTimeoutPromise = new Promise((_, reject) => {
           setTimeout(() => {
-            console.log('Connection test timeout reached after 3 seconds');
-            reject(new Error('Connection test timeout after 3 seconds'));
-          }, 3000);
+            console.log('Connection test timeout reached after 10 seconds');
+            reject(new Error('Connection test timeout after 10 seconds'));
+          }, 10000);
         });
         
         const { data: testData, error: testError } = await Promise.race([connectionTestPromise, connectionTimeoutPromise]) as { data: unknown; error: unknown };
         
         if (testError) {
           console.error('Supabase connection test failed:', testError);
-          console.log('Connection test failed, setting default profile immediately');
-          return {
-            user_id: userId,
-            full_name: 'Unknown User',
-            email: 'unknown@example.com',
-            role: 'user'
-          };
+          console.log('Connection test failed, but continuing with profile fetch');
+          // Don't return default profile here, let the actual query handle it
         }
         console.log('Supabase connection test successful');
       } catch (connectionError) {
@@ -142,9 +137,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => {
-          console.log('Query timeout reached after 5 seconds');
-          reject(new Error('Profile fetch timeout after 5 seconds'));
-        }, 5000);
+          console.log('Query timeout reached after 15 seconds');
+          reject(new Error('Profile fetch timeout after 15 seconds'));
+        }, 15000);
       });
 
       console.log('Starting Promise.race between query and timeout...');

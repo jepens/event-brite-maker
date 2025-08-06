@@ -19,7 +19,7 @@ export function useRegistrations() {
           events (
             id,
             name,
-            date,
+            event_date,
             location,
             description,
             whatsapp_enabled
@@ -69,7 +69,7 @@ export function useRegistrations() {
       const { data, error } = await supabase
         .from('events')
         .select('*')
-        .order('date', { ascending: false });
+        .order('event_date', { ascending: false });
 
       if (error) {
         console.error('Error fetching events:', error);

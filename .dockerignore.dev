@@ -39,8 +39,8 @@ Thumbs.db
 .gitignore
 
 # Docker
-Dockerfile
-.dockerignore
+Dockerfile*
+.dockerignore*
 docker-compose*.yml
 
 # Logs
@@ -111,18 +111,12 @@ test-data-logs/
 *.test.tsx
 __tests__/
 
-# SQL files (not needed in production)
+# SQL files (not needed in development)
 *.sql
 
 # Documentation
 README.md
 *.md
 
-# Scripts (not needed in production)
+# Scripts (not needed in development)
 scripts/
-
-# Development tools
-eslint.config.js
-postcss.config.js
-tailwind.config.ts
-tsconfig*.json
