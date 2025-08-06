@@ -7,6 +7,7 @@ import { deleteRegistration } from '@/integrations/supabase/client';
 export function useRegistrations() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
 
   const fetchRegistrations = async () => {
@@ -64,6 +65,26 @@ export function useRegistrations() {
     }
   };
 
+  const refreshRegistrations = async () => {
+    try {
+      setRefreshing(true);
+      await fetchRegistrations();
+      toast({
+        title: 'Success',
+        description: 'Registrations refreshed successfully',
+      });
+    } catch (error) {
+      console.error('Error refreshing registrations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to refresh registrations',
+        variant: 'destructive',
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const fetchEvents = async () => {
     try {
       const { data, error } = await supabase
@@ -85,80 +106,6 @@ export function useRegistrations() {
   useEffect(() => {
     fetchRegistrations();
     fetchEvents();
-
-    // Set up real-time subscription for ticket updates
-    const ticketsSubscription = supabase
-      .channel('tickets-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'tickets',
-        },
-        (payload) => {
-          console.log('Ticket updated:', payload);
-          
-          // Update the corresponding registration's ticket data
-          setRegistrations(prev => 
-            prev.map(reg => {
-              if (reg.tickets && reg.tickets.length > 0) {
-                const updatedTickets = reg.tickets.map(ticket => {
-                  if (ticket.id === payload.new.id) {
-                    return {
-                      ...ticket,
-                      ...payload.new
-                    };
-                  }
-                  return ticket;
-                });
-                
-                return {
-                  ...reg,
-                  tickets: updatedTickets
-                };
-              }
-              return reg;
-            })
-          );
-        }
-      )
-      .subscribe();
-
-    // Set up real-time subscription for registration updates
-    const registrationsSubscription = supabase
-      .channel('registrations-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'registrations',
-        },
-        (payload) => {
-          console.log('Registration updated:', payload);
-          
-          // Update the corresponding registration data
-          setRegistrations(prev => 
-            prev.map(reg => {
-              if (reg.id === payload.new.id) {
-                return {
-                  ...reg,
-                  ...payload.new
-                };
-              }
-              return reg;
-            })
-          );
-        }
-      )
-      .subscribe();
-
-    // Cleanup subscriptions on unmount
-    return () => {
-      ticketsSubscription.unsubscribe();
-      registrationsSubscription.unsubscribe();
-    };
   }, []);
 
   const updateRegistrationStatus = async (registrationId: string, status: 'approved' | 'rejected', notificationOptions?: { sendEmail: boolean; sendWhatsApp: boolean }) => {
@@ -436,10 +383,12 @@ export function useRegistrations() {
   return {
     registrations,
     loading,
+    refreshing,
     events,
     updateRegistrationStatus,
     deleteRegistrationById,
     batchApproveRegistrations,
     batchDeleteRegistrations,
+    refreshRegistrations,
   };
 } 

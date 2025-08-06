@@ -21,12 +21,13 @@ export function RegistrationsManagement() {
   const {
     registrations,
     loading,
+    refreshing,
     events,
-    fetchRegistrations,
     updateRegistrationStatus,
     deleteRegistrationById,
     batchApproveRegistrations,
     batchDeleteRegistrations,
+    refreshRegistrations,
   } = useRegistrations();
   
   const { isMobile } = useMobile();
@@ -226,37 +227,11 @@ export function RegistrationsManagement() {
         title: 'Success',
         description: 'Email sent successfully',
       });
-      await fetchRegistrations(); // Refresh data after successful email send
     } catch (error) {
       console.error('Error resending email:', error);
       toast({
         title: 'Error',
         description: 'Failed to resend email',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleResendWhatsApp = async (registration: Registration) => {
-    try {
-      const { error } = await supabase.functions.invoke('send-whatsapp-ticket', {
-        body: {
-          registration_id: registration.id,
-        },
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'WhatsApp ticket sent successfully',
-      });
-      await fetchRegistrations(); // Refresh data after successful WhatsApp send
-    } catch (error) {
-      console.error('Error resending WhatsApp:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to resend WhatsApp ticket',
         variant: 'destructive',
       });
     }
@@ -377,6 +352,8 @@ export function RegistrationsManagement() {
             onAddParticipant={handleAddParticipant}
             onBatchApprove={handleBatchApprove}
             onBatchDelete={handleBatchDelete}
+            onRefresh={refreshRegistrations}
+            refreshing={refreshing}
             selectedPendingCount={selectedPendingCount}
             selectedCount={selectedRegistrations.length}
           />
@@ -399,7 +376,6 @@ export function RegistrationsManagement() {
             onUpdateStatus={updateRegistrationStatus}
             onViewTicket={handleViewTicket}
             onResendEmail={handleResendEmail}
-            onResendWhatsApp={handleResendWhatsApp}
             onDeleteRegistration={handleDeleteRegistration}
             onShowApproveDialog={handleShowApproveDialog}
             onEditParticipant={handleEditParticipant}

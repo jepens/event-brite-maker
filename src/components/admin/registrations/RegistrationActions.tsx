@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Users, FileDown, Plus, CheckCircle, Upload, Trash2 } from 'lucide-react';
+import { Users, FileDown, Plus, CheckCircle, Upload, Trash2, RefreshCw } from 'lucide-react';
 import { ImportWizard } from './ImportWizard';
 import { ExportDialog } from './ExportDialog';
 import { Event } from './types';
@@ -21,6 +21,8 @@ interface RegistrationActionsProps {
   onAddParticipant: () => void;
   onBatchApprove: () => void;
   onBatchDelete: () => void;
+  onRefresh: () => void;
+  refreshing?: boolean;
 }
 
 export function RegistrationActions({
@@ -36,6 +38,8 @@ export function RegistrationActions({
   onAddParticipant,
   onBatchApprove,
   onBatchDelete,
+  onRefresh,
+  refreshing,
 }: RegistrationActionsProps) {
   // Debug logging for events
   console.log('RegistrationActions - Events:', events);
@@ -127,6 +131,15 @@ export function RegistrationActions({
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Participant
+          </Button>
+          <Button
+            onClick={onRefresh}
+            disabled={refreshing || downloading}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
       </div>
