@@ -22,6 +22,7 @@ interface RegistrationActionsProps {
   onBatchApprove: () => void;
   onBatchDelete: () => void;
   onRefresh: () => void;
+  onForceRefresh?: () => void;
   refreshing?: boolean;
 }
 
@@ -39,6 +40,7 @@ export function RegistrationActions({
   onBatchApprove,
   onBatchDelete,
   onRefresh,
+  onForceRefresh,
   refreshing,
 }: RegistrationActionsProps) {
   // Debug logging for events
@@ -141,6 +143,17 @@ export function RegistrationActions({
             <RefreshCw className="h-4 w-4 mr-2" />
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
+          {onForceRefresh && (
+            <Button
+              onClick={onForceRefresh}
+              disabled={refreshing || downloading}
+              variant="outline"
+              size="sm"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Force Refresh
+            </Button>
+          )}
         </div>
       </div>
     </div>

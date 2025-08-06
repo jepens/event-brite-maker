@@ -13,6 +13,8 @@ export function useRegistrations() {
   const fetchRegistrations = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Fetching registrations with fresh data...');
+      
       const { data, error } = await supabase
         .from('registrations')
         .select(`
@@ -43,7 +45,7 @@ export function useRegistrations() {
         .order('registered_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching registrations:', error);
+        console.error('❌ Error fetching registrations:', error);
         toast({
           title: 'Error',
           description: 'Failed to fetch registrations',
@@ -52,9 +54,26 @@ export function useRegistrations() {
         return;
       }
 
+      console.log('✅ Registrations fetched successfully:', data?.length || 0, 'registrations');
+      
+      // Log ticket status for debugging
+      data?.forEach(reg => {
+        if (reg.tickets && reg.tickets.length > 0) {
+          const ticket = reg.tickets[0];
+          console.log(`🎫 Registration ${reg.id} - Ticket status:`, {
+            email_sent: ticket.email_sent,
+            email_sent_at: ticket.email_sent_at,
+            whatsapp_sent: ticket.whatsapp_sent,
+            whatsapp_sent_at: ticket.whatsapp_sent_at
+          });
+        } else {
+          console.log(`🎫 Registration ${reg.id} - No tickets found`);
+        }
+      });
+
       setRegistrations(data || []);
     } catch (error) {
-      console.error('Error fetching registrations:', error);
+      console.error('❌ Error fetching registrations:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch registrations',
@@ -68,16 +87,103 @@ export function useRegistrations() {
   const refreshRegistrations = async () => {
     try {
       setRefreshing(true);
+      console.log('🔄 Manual refresh started...');
+      
+      // Clear current data first
+      setRegistrations([]);
+      
+      // Force fresh data by adding a timestamp to avoid cache
       await fetchRegistrations();
+      
+      console.log('✅ Manual refresh completed');
       toast({
         title: 'Success',
         description: 'Registrations refreshed successfully',
       });
     } catch (error) {
-      console.error('Error refreshing registrations:', error);
+      console.error('❌ Error refreshing registrations:', error);
       toast({
         title: 'Error',
         description: 'Failed to refresh registrations',
+        variant: 'destructive',
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Force refresh function that bypasses cache completely
+  const forceRefreshRegistrations = async () => {
+    try {
+      setRefreshing(true);
+      console.log('🔄 Force refresh started...');
+      
+      // Clear current data
+      setRegistrations([]);
+      
+      // Fetch with explicit cache busting
+      const { data, error } = await supabase
+        .from('registrations')
+        .select(`
+          *,
+          events (
+            id,
+            name,
+            event_date,
+            location,
+            description,
+            whatsapp_enabled
+          ),
+          tickets (
+            id,
+            qr_code,
+            short_code,
+            status,
+            checkin_at,
+            checkin_location,
+            whatsapp_sent,
+            whatsapp_sent_at,
+            email_sent,
+            email_sent_at,
+            issued_at,
+            qr_image_url
+          )
+        `)
+        .order('registered_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error force refreshing registrations:', error);
+        throw error;
+      }
+
+      console.log('✅ Force refresh completed:', data?.length || 0, 'registrations');
+      
+      // Log detailed ticket information
+      data?.forEach(reg => {
+        if (reg.tickets && reg.tickets.length > 0) {
+          const ticket = reg.tickets[0];
+          console.log(`🎫 FORCE REFRESH - Registration ${reg.id}:`, {
+            participant_name: reg.participant_name,
+            email_sent: ticket.email_sent,
+            email_sent_at: ticket.email_sent_at,
+            whatsapp_sent: ticket.whatsapp_sent,
+            whatsapp_sent_at: ticket.whatsapp_sent_at,
+            ticket_id: ticket.id
+          });
+        }
+      });
+
+      setRegistrations(data || []);
+      
+      toast({
+        title: 'Success',
+        description: 'Registrations force refreshed successfully',
+      });
+    } catch (error) {
+      console.error('❌ Error force refreshing registrations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to force refresh registrations',
         variant: 'destructive',
       });
     } finally {
@@ -390,5 +496,6 @@ export function useRegistrations() {
     batchApproveRegistrations,
     batchDeleteRegistrations,
     refreshRegistrations,
+    forceRefreshRegistrations,
   };
 } 

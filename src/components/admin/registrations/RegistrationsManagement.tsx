@@ -28,6 +28,7 @@ export function RegistrationsManagement() {
     batchApproveRegistrations,
     batchDeleteRegistrations,
     refreshRegistrations,
+    forceRefreshRegistrations,
   } = useRegistrations();
   
   const { isMobile } = useMobile();
@@ -353,6 +354,7 @@ export function RegistrationsManagement() {
             onBatchApprove={handleBatchApprove}
             onBatchDelete={handleBatchDelete}
             onRefresh={refreshRegistrations}
+            onForceRefresh={forceRefreshRegistrations}
             refreshing={refreshing}
             selectedPendingCount={selectedPendingCount}
             selectedCount={selectedRegistrations.length}
