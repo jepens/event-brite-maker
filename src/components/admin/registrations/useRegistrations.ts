@@ -85,6 +85,80 @@ export function useRegistrations() {
   useEffect(() => {
     fetchRegistrations();
     fetchEvents();
+
+    // Set up real-time subscription for ticket updates
+    const ticketsSubscription = supabase
+      .channel('tickets-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tickets',
+        },
+        (payload) => {
+          console.log('Ticket updated:', payload);
+          
+          // Update the corresponding registration's ticket data
+          setRegistrations(prev => 
+            prev.map(reg => {
+              if (reg.tickets && reg.tickets.length > 0) {
+                const updatedTickets = reg.tickets.map(ticket => {
+                  if (ticket.id === payload.new.id) {
+                    return {
+                      ...ticket,
+                      ...payload.new
+                    };
+                  }
+                  return ticket;
+                });
+                
+                return {
+                  ...reg,
+                  tickets: updatedTickets
+                };
+              }
+              return reg;
+            })
+          );
+        }
+      )
+      .subscribe();
+
+    // Set up real-time subscription for registration updates
+    const registrationsSubscription = supabase
+      .channel('registrations-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'registrations',
+        },
+        (payload) => {
+          console.log('Registration updated:', payload);
+          
+          // Update the corresponding registration data
+          setRegistrations(prev => 
+            prev.map(reg => {
+              if (reg.id === payload.new.id) {
+                return {
+                  ...reg,
+                  ...payload.new
+                };
+              }
+              return reg;
+            })
+          );
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      ticketsSubscription.unsubscribe();
+      registrationsSubscription.unsubscribe();
+    };
   }, []);
 
   const updateRegistrationStatus = async (registrationId: string, status: 'approved' | 'rejected', notificationOptions?: { sendEmail: boolean; sendWhatsApp: boolean }) => {
@@ -363,7 +437,6 @@ export function useRegistrations() {
     registrations,
     loading,
     events,
-    fetchRegistrations,
     updateRegistrationStatus,
     deleteRegistrationById,
     batchApproveRegistrations,
