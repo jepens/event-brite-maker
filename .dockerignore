@@ -4,11 +4,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Build outputs
+# Production build
 dist
 build
-.next
-out
 
 # Environment files
 .env
@@ -17,14 +15,20 @@ out
 .env.test.local
 .env.production.local
 
-# IDE files
+# IDE and editor files
 .vscode
 .idea
 *.swp
 *.swo
+*~
 
-# OS files
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # Git
@@ -36,13 +40,13 @@ Dockerfile*
 docker-compose*
 .dockerignore
 
-# Documentation
-*.md
-docs/
-
 # Logs
 logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
 # Runtime data
 pids
@@ -52,10 +56,13 @@ pids
 
 # Coverage directory used by tools like istanbul
 coverage
+*.lcov
 
-# Temporary folders
-tmp
-temp
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
 
 # Optional npm cache directory
 .npm
@@ -82,8 +89,58 @@ temp
 .cache
 .parcel-cache
 
-# Vite cache
-.vite
+# Next.js build output
+.next
 
-# TypeScript cache
+# Nuxt.js build / generate output
+.nuxt
+
+# Gatsby files
+.cache/
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# Test files
+test-screenshots/
+test-data-logs/
+test-logs/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Documentation
+*.md
+!README.md
+
+# SQL files
+*.sql
+
+# Data files
+*.csv
+*.xlsx
+*.xls
+
+# Screenshots and test data
+test-screenshots/
+test-data-logs/
+test-logs/
+
+# Scripts
+scripts/
+
+# Supabase
+supabase/
+
+# Public assets (will be copied separately if needed)
+public/
+
+# TypeScript
 *.tsbuildinfo 

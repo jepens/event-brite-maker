@@ -52,7 +52,7 @@ export function RegistrationsManagement() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(30);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // Default to 10 for better batch operations
 
   // Filter registrations based on search and filters
   const filteredRegistrations = useMemo(() => {

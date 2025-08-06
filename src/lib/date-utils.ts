@@ -14,6 +14,12 @@ const DEFAULT_TIMEZONE = 'Asia/Jakarta';
  */
 export function parseDateWithTimezone(dateString: string, timezone: string = DEFAULT_TIMEZONE): Date {
   try {
+    // Handle undefined, null, or empty string
+    if (!dateString || typeof dateString !== 'string') {
+      console.warn('Invalid date string provided:', dateString);
+      return new Date();
+    }
+    
     // Jika sudah ada timezone info, gunakan parseISO
     if (dateString.includes('T') && (dateString.includes('Z') || dateString.includes('+'))) {
       return parseISO(dateString);

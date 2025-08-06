@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Users, FileDown, Plus, CheckCircle } from 'lucide-react';
+import { Users, FileDown, Plus, CheckCircle, Upload } from 'lucide-react';
 import { ImportWizard } from './ImportWizard';
 import { ExportDialog } from './ExportDialog';
 import { Event } from './types';
@@ -33,6 +33,11 @@ export function RegistrationActions({
   onAddParticipant,
   onBatchApprove,
 }: RegistrationActionsProps) {
+  // Debug logging for events
+  console.log('RegistrationActions - Events:', events);
+  console.log('RegistrationActions - Events length:', events.length);
+  console.log('RegistrationActions - First event ID:', events[0]?.id);
+
   return (
     <div className="flex justify-between items-center">
       <div>
@@ -61,10 +66,22 @@ export function RegistrationActions({
               Batch Approve ({selectedPendingCount})
             </Button>
           )}
-          <ImportWizard 
-            eventId={events[0]?.id || ''} 
-            onImportComplete={onImportComplete}
-          />
+          {events.length > 0 ? (
+            <ImportWizard 
+              eventId={events[0].id} 
+              onImportComplete={onImportComplete}
+            />
+          ) : (
+            <Button
+              disabled
+              variant="outline"
+              size="sm"
+              title="No events available for import"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import Data
+            </Button>
+          )}
           <ExportDialog 
             events={events}
             currentFilters={currentFilters}

@@ -133,6 +133,7 @@ export const FIELD_SUGGESTIONS = {
   'Nama Peserta': 'participant_name',
   'Email': 'participant_email', 
   'Nomor Telepon': 'phone_number',
+  'Nomor Whatsapp': 'phone_number',
   'Perusahaan': 'custom_data.company',
   'Jabatan': 'custom_data.position',
   'Departemen': 'custom_data.department',

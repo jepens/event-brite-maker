@@ -70,6 +70,46 @@ export function BatchApproveDialog({
             </div>
           </div>
 
+          {/* Batch Size Recommendations */}
+          {(notificationOptions.sendEmail || notificationOptions.sendWhatsApp) && (
+            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+              <h4 className="font-medium text-amber-900 mb-2 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Batch Size Recommendations
+              </h4>
+              <div className="text-sm text-amber-800 space-y-1">
+                {notificationOptions.sendEmail && notificationOptions.sendWhatsApp && (
+                  <>
+                    <div>• <strong>Email + WhatsApp:</strong> Optimal 5-8, Max 10</div>
+                    <div>• <strong>Current batch:</strong> {totalCount} registrations</div>
+                    {totalCount > 10 && (
+                      <div className="text-red-600 font-medium">
+                        ⚠️ Large batch detected. Consider splitting into smaller batches for better reliability.
+                      </div>
+                    )}
+                  </>
+                )}
+                {notificationOptions.sendEmail && !notificationOptions.sendWhatsApp && (
+                  <>
+                    <div>• <strong>Email only:</strong> Optimal 10-15, Max 25</div>
+                    <div>• <strong>Current batch:</strong> {totalCount} registrations</div>
+                  </>
+                )}
+                {!notificationOptions.sendEmail && notificationOptions.sendWhatsApp && (
+                  <>
+                    <div>• <strong>WhatsApp only:</strong> Optimal 5-8, Max 10</div>
+                    <div>• <strong>Current batch:</strong> {totalCount} registrations</div>
+                    {totalCount > 10 && (
+                      <div className="text-red-600 font-medium">
+                        ⚠️ Large batch detected. Consider splitting into smaller batches for better reliability.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Notification Options */}
           <div className="space-y-3">
             <h4 className="font-medium">Notification Options</h4>

@@ -69,7 +69,8 @@ export function useRegistrations() {
               whatsapp_sent,
               whatsapp_sent_at,
               email_sent,
-              email_sent_at
+              email_sent_at,
+              issued_at
             `)
             .eq('registration_id', registration.id);
 
@@ -172,8 +173,11 @@ export function useRegistrations() {
               description: `Registration approved and ticket generated successfully!${notificationText}`,
             });
             
-            // Refresh registrations immediately to get updated WhatsApp status
+            // Refresh immediately and then again after a delay to ensure we get the latest status
             await fetchRegistrations();
+            setTimeout(async () => {
+              await fetchRegistrations();
+            }, 3000);
           }
         } catch (qrError) {
           console.error('Error calling generate-qr-ticket function:', qrError);
@@ -246,38 +250,48 @@ export function useRegistrations() {
         description: `${registrationIds.length} registration${registrationIds.length > 1 ? 's' : ''} approved successfully`,
       });
 
-      // Generate QR tickets and send notifications for each approved registration
+      // Generate QR tickets and send notifications for each approved registration with delay
       if (notificationOptions && (notificationOptions.sendEmail || notificationOptions.sendWhatsApp)) {
-        const results = await Promise.allSettled(
-          registrationIds.map(async (registrationId) => {
-            try {
-              console.log('Generating QR ticket for batch approved registration:', registrationId);
-              
-              const { data: qrData, error: qrError } = await supabase.functions.invoke('generate-qr-ticket', {
-                body: { 
-                  registration_id: registrationId,
-                  notification_options: notificationOptions
-                }
-              });
-
-              if (qrError) {
-                console.error('Error generating QR ticket for registration:', registrationId, qrError);
-                return { success: false, registrationId, error: qrError };
-              } else {
-                console.log('QR ticket generated successfully for registration:', registrationId, qrData);
-                return { success: true, registrationId };
-              }
-            } catch (error) {
-              console.error('Error calling generate-qr-ticket function for registration:', registrationId, error);
-              return { success: false, registrationId, error };
+        console.log(`Starting batch notification for ${registrationIds.length} registrations`);
+        
+        const results = [];
+        
+        // Process registrations sequentially with delay to avoid rate limiting
+        for (let i = 0; i < registrationIds.length; i++) {
+          const registrationId = registrationIds[i];
+          
+          try {
+            console.log(`Processing registration ${i + 1}/${registrationIds.length}:`, registrationId);
+            
+            // Add delay between requests to avoid rate limiting
+            if (i > 0) {
+              const delay = notificationOptions.sendWhatsApp ? 2000 : 500; // 2s for WhatsApp, 500ms for email only
+              console.log(`Waiting ${delay}ms before next request...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
             }
-          })
-        );
+            
+            const { data: qrData, error: qrError } = await supabase.functions.invoke('generate-qr-ticket', {
+              body: { 
+                registration_id: registrationId,
+                notification_options: notificationOptions
+              }
+            });
+
+            if (qrError) {
+              console.error('Error generating QR ticket for registration:', registrationId, qrError);
+              results.push({ success: false, registrationId, error: qrError });
+            } else {
+              console.log('QR ticket generated successfully for registration:', registrationId, qrData);
+              results.push({ success: true, registrationId });
+            }
+          } catch (error) {
+            console.error('Error calling generate-qr-ticket function for registration:', registrationId, error);
+            results.push({ success: false, registrationId, error });
+          }
+        }
 
         // Count successes and failures
-        const successful = results.filter(result => 
-          result.status === 'fulfilled' && result.value.success
-        ).length;
+        const successful = results.filter(result => result.success).length;
         const failed = results.length - successful;
 
         // Show summary toast
@@ -309,8 +323,11 @@ export function useRegistrations() {
         }
       }
 
-      // Refresh registrations to get updated data
+      // Refresh registrations to get updated data, then refresh again after a delay
       await fetchRegistrations();
+      setTimeout(async () => {
+        await fetchRegistrations();
+      }, 3000);
     } catch (error) {
       console.error('Error batch approving registrations:', error);
       toast({

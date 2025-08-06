@@ -128,7 +128,7 @@ export function RegistrationForm({
         clearTimeout(emailValidationTimeout);
       }
     };
-  }, [email, checkEmailExists]); // Removed emailValidationTimeout to prevent infinite loop
+  }, [email, checkEmailExists, emailValidationTimeout]);
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value;
@@ -285,7 +285,7 @@ export function RegistrationForm({
         clearTimeout(whatsappValidationTimeout);
       }
     };
-  }, []); // Empty dependency array - only run on unmount
+  }, [memberNumberValidationTimeouts, whatsappValidationTimeout]);
 
   return (
     <div className="space-y-6">

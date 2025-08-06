@@ -23,6 +23,7 @@ const handler = async (req)=>{
     const { registration_id, participant_email, participant_name, event_name, event_date, event_location, qr_code_data, qr_image_url, short_code } = await req.json();
     // Log parameters for debugging purposes
     console.log("Starting email send process");
+    console.log("Email function received registration_id:", registration_id);
     console.log("Email parameters:", {
       to: participant_email,
       event: event_name,
@@ -174,33 +175,45 @@ This is an automated email. Please do not reply to this message.
 
     // Update ticket record to mark email as sent
     if (registration_id) {
+      console.log('Attempting to update email status for registration:', registration_id);
       try {
         const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
         const supabaseUrl = Deno.env.get('SUPABASE_URL');
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
         
+        console.log('Supabase connection details:', {
+          url_set: !!supabaseUrl,
+          service_key_set: !!supabaseServiceKey
+        });
+        
         if (supabaseUrl && supabaseServiceKey) {
           const supabase = createClient(supabaseUrl, supabaseServiceKey);
           
-          const { error: updateError } = await supabase
+          const { data: updateData, error: updateError } = await supabase
             .from('tickets')
             .update({
               email_sent: true,
               email_sent_at: new Date().toISOString()
             })
-            .eq('registration_id', registration_id);
+            .eq('registration_id', registration_id)
+            .select();
           
           if (updateError) {
             console.error('Error updating ticket email status:', updateError);
             // Don't fail the whole process if update fails
           } else {
             console.log('Email status updated successfully for registration:', registration_id);
+            console.log('Updated ticket data:', updateData);
           }
+        } else {
+          console.error('Missing Supabase configuration for email status update');
         }
       } catch (updateError) {
         console.error('Error updating email status:', updateError);
         // Don't fail the whole process if update fails
       }
+    } else {
+      console.error('No registration_id provided for email status update');
     }
 
     // Log success and return a success response

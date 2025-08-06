@@ -673,6 +673,21 @@ export class ImportService {
     console.log('📊 Total rows to process:', data.totalRows);
     console.log('⚙️ Import options:', options);
 
+    // Validate eventId
+    if (!eventId || eventId.trim() === '') {
+      const error = 'Event ID is required for import';
+      console.error('❌', error);
+      throw new Error(error);
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(eventId)) {
+      const error = `Invalid Event ID format: ${eventId}`;
+      console.error('❌', error);
+      throw new Error(error);
+    }
+
     try {
       // Create import log
       const { data: importLog, error: logError } = await supabase
@@ -809,6 +824,17 @@ export class ImportService {
     let failed = 0;
     const errors: ImportError[] = [];
 
+    // Validate eventId
+    if (!eventId || eventId.trim() === '') {
+      console.error('❌ Event ID is required for batch processing');
+      return { successful: 0, failed: batch.length, errors: [{
+        row: 0,
+        field: 'event_id',
+        message: 'Event ID is required for import',
+        value: eventId
+      }] };
+    }
+
     console.log('🔄 Processing batch with mapping:', mapping);
     console.log('📊 Batch size:', batch.length);
 
@@ -852,8 +878,8 @@ export class ImportService {
                    columnNameLower.includes('email') || columnNameLower.includes('mail')) {
           registration.participant_email = value;
           console.log(`✅ Mapped to participant_email: "${value}"`);
-        } else if (fieldNameLower.includes('phone') || fieldNameLower.includes('telepon') || fieldNameLower.includes('hp') || 
-                   columnNameLower.includes('phone') || columnNameLower.includes('telepon') || columnNameLower.includes('hp')) {
+        } else if (fieldNameLower.includes('phone') || fieldNameLower.includes('telepon') || fieldNameLower.includes('hp') || fieldNameLower.includes('whatsapp') || 
+                   columnNameLower.includes('phone') || columnNameLower.includes('telepon') || columnNameLower.includes('hp') || columnNameLower.includes('whatsapp')) {
           registration.phone_number = value;
           console.log(`✅ Mapped to phone_number: "${value}"`);
         } else {
@@ -864,7 +890,7 @@ export class ImportService {
           } else if (columnNameLower.includes('email') || columnNameLower.includes('mail')) {
             registration.participant_email = value;
             console.log(`✅ Mapped to participant_email (by column): "${value}"`);
-          } else if (columnNameLower.includes('phone') || columnNameLower.includes('telepon') || columnNameLower.includes('hp')) {
+          } else if (columnNameLower.includes('phone') || columnNameLower.includes('telepon') || columnNameLower.includes('hp') || columnNameLower.includes('whatsapp')) {
             registration.phone_number = value;
             console.log(`✅ Mapped to phone_number (by column): "${value}"`);
           } else {
@@ -877,7 +903,7 @@ export class ImportService {
               } else if (columnNameLower === 'email' || columnNameLower === 'mail') {
                 registration.participant_email = value;
                 console.log(`✅ Mapped to participant_email (generic field): "${value}"`);
-              } else if (columnNameLower.includes('telepon') || columnNameLower.includes('phone') || columnNameLower.includes('hp')) {
+              } else if (columnNameLower.includes('telepon') || columnNameLower.includes('phone') || columnNameLower.includes('hp') || columnNameLower.includes('whatsapp')) {
                 registration.phone_number = value;
                 console.log(`✅ Mapped to phone_number (generic field): "${value}"`);
               } else {
@@ -904,7 +930,8 @@ export class ImportService {
         name: registration.participant_name,
         email: registration.participant_email,
         phone: registration.phone_number,
-        customData: registration.custom_data
+        customData: registration.custom_data,
+        rawData: row.data
       });
 
       return registration;

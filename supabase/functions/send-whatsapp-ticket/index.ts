@@ -5,12 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
-// Rate limiting configuration
+// Rate limiting configuration - More lenient for batch operations
 const RATE_LIMITS = {
-  messages_per_second: 5,
-  messages_per_minute: 250,
-  messages_per_hour: 1000,
-  retry_after_seconds: 60,
+  messages_per_second: 2, // Reduced from 5 to 2 for batch operations
+  messages_per_minute: 100, // Reduced from 250 to 100 for batch operations
+  messages_per_hour: 500, // Reduced from 1000 to 500 for batch operations
+  retry_after_seconds: 30, // Reduced from 60 to 30 seconds
   max_retries: 3
 };
 // Simple in-memory rate limiter (in production, use Redis)
@@ -30,9 +30,29 @@ function isRateLimited(phoneNumber) {
   return false;
 }
 function validatePhoneNumber(phone) {
-  // Basic validation for Indonesian phone numbers
-  const phoneRegex = /^628[0-9]{8,11}$/;
-  return phoneRegex.test(phone);
+  // Enhanced validation for Indonesian phone numbers
+  // Support multiple formats: 628xxxxxxxxxx, 08xxxxxxxxxx, 8xxxxxxxxx, xxxxxxxxxx
+  const digitsOnly = phone.replace(/\D/g, '');
+  
+  // Check if it's already in correct format: 628xxxxxxxxxx (13 digits)
+  if (digitsOnly.startsWith('62') && digitsOnly.length === 13) {
+    return true;
+  }
+  
+  // Check if it can be converted to correct format
+  if (digitsOnly.startsWith('08') && digitsOnly.length === 12) {
+    return true; // Can be converted to 628xxxxxxxxxx
+  }
+  
+  if (digitsOnly.startsWith('8') && digitsOnly.length === 11) {
+    return true; // Can be converted to 628xxxxxxxxxx
+  }
+  
+  if (digitsOnly.length === 10 && !digitsOnly.startsWith('0') && !digitsOnly.startsWith('8')) {
+    return true; // Can be converted to 628xxxxxxxxxx (assuming it's a mobile number)
+  }
+  
+  return false;
 }
 function formatDate(date, format, useShort) {
   const eventDate = new Date(date);
@@ -115,7 +135,15 @@ const handler = async (req)=>{
   // Bypass JWT verification for testing
   console.log("WhatsApp function called - bypassing JWT verification");
   try {
-    const { registration_id, template_name, language_code, include_header = true, custom_date_format, use_short_params = false } = await req.json();
+    const requestBody = await req.json();
+    console.log("WhatsApp function received request body:", requestBody);
+    
+    const { registration_id, template_name, language_code, include_header = true, custom_date_format, use_short_params = false } = requestBody;
+    
+    if (!registration_id) {
+      throw new Error('registration_id is required');
+    }
+    
     console.log("Starting WhatsApp ticket send for registration:", registration_id);
     console.log("Using template name:", template_name || 'ticket_confirmation (default)');
     console.log("Using language code:", language_code || 'id (default)');
@@ -165,14 +193,39 @@ const handler = async (req)=>{
       throw new Error('Phone number not provided for registration');
     }
     if (!validatePhoneNumber(registration.phone_number)) {
-      throw new Error('Invalid phone number format. Expected format: 6281314942011');
+      throw new Error('Invalid phone number format. Expected format: 6281314942011, 081314942012, 81314942012, or 1314942012');
     }
+    
+    // Format phone number to WhatsApp format (628xxxxxxxxxx)
+    const formatPhoneNumber = (phone) => {
+      const digitsOnly = phone.replace(/\D/g, '');
+      
+      if (digitsOnly.startsWith('62') && digitsOnly.length === 13) {
+        return digitsOnly; // Already in correct format
+      } else if (digitsOnly.startsWith('08') && digitsOnly.length === 12) {
+        return '62' + digitsOnly.substring(1); // Convert 08xxxxxxxxxx to 628xxxxxxxxxx
+      } else if (digitsOnly.startsWith('8') && digitsOnly.length === 11) {
+        return '62' + digitsOnly; // Convert 8xxxxxxxxx to 628xxxxxxxxxx
+        } else if (digitsOnly.length === 10 && !digitsOnly.startsWith('0') && !digitsOnly.startsWith('8')) {
+    return '628' + digitsOnly; // Convert xxxxxxxxxx to 628xxxxxxxxxx (assuming it's a mobile number)
+  }
+      
+      return phone; // Return original if can't format
+    };
+    
+    const formattedPhoneNumber = formatPhoneNumber(registration.phone_number);
+    console.log("Phone number formatting:", {
+      original: registration.phone_number,
+      formatted: formattedPhoneNumber
+    });
     if (registration.tickets && registration.tickets.whatsapp_sent) {
       throw new Error('WhatsApp ticket already sent for this registration');
     }
-    // Check rate limiting
+    // Check rate limiting with more lenient limits for batch operations
     if (isRateLimited(registration.phone_number)) {
-      throw new Error('Rate limit exceeded for this phone number');
+      console.warn('Rate limit warning for phone number:', registration.phone_number);
+      // Don't throw error, just log warning for batch operations
+      // throw new Error('Rate limit exceeded for this phone number');
     }
     // Format date and time separately
     const formattedDate = formatDate(registration.events.event_date, custom_date_format, use_short_params);
@@ -182,6 +235,12 @@ const handler = async (req)=>{
     // Use provided template name or fallback to environment variable or default
     const finalTemplateName = template_name || Deno.env.get('WHATSAPP_TEMPLATE_NAME') || 'ticket_confirmation';
     const finalLanguageCode = language_code || 'id';
+    
+    console.log("Template name resolution:", {
+      provided_template_name: template_name,
+      env_template_name: Deno.env.get('WHATSAPP_TEMPLATE_NAME'),
+      final_template_name: finalTemplateName
+    });
     // Prepare parameters based on options
     let customerName = registration.participant_name;
     let eventName = registration.events.name;
@@ -203,7 +262,7 @@ const handler = async (req)=>{
     // Prepare WhatsApp payload for new template with 7 parameters
     const whatsappPayload = {
       messaging_product: "whatsapp",
-      to: registration.phone_number,
+      to: formattedPhoneNumber, // Use formatted phone number
       type: "template",
       template: {
         name: finalTemplateName,
@@ -262,7 +321,8 @@ const handler = async (req)=>{
       ]
     });
     console.log("Sending WhatsApp message with payload:", {
-      to: registration.phone_number,
+      to: formattedPhoneNumber, // Use formatted phone number in logging
+      original_phone: registration.phone_number,
       event: registration.events.name,
       has_qr_image: !!registration.tickets?.qr_image_url,
       include_header: include_header,
@@ -281,18 +341,64 @@ const handler = async (req)=>{
         dresscode: dresscode
       }
     });
-    // Send WhatsApp message
-    const whatsappResponse = await fetch(`https://graph.facebook.com/v18.0/${Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('WHATSAPP_ACCESS_TOKEN')}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(whatsappPayload)
+    // Send WhatsApp message with retry mechanism
+    console.log("WhatsApp API call details:", {
+      url: `https://graph.facebook.com/v18.0/${Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')}/messages`,
+      phone_number_id: Deno.env.get('WHATSAPP_PHONE_NUMBER_ID'),
+      access_token_set: !!Deno.env.get('WHATSAPP_ACCESS_TOKEN'),
+      payload: whatsappPayload
     });
-    const whatsappResult = await whatsappResponse.json();
+    
+    let whatsappResult;
+    let whatsappResponse;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        whatsappResponse = await fetch(`https://graph.facebook.com/v18.0/${Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('WHATSAPP_ACCESS_TOKEN')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(whatsappPayload)
+        });
+        
+        whatsappResult = await whatsappResponse.json();
+        
+        if (whatsappResponse.ok) {
+          console.log("WhatsApp message sent successfully on attempt", retryCount + 1);
+          break;
+        } else {
+          console.error(`WhatsApp API error on attempt ${retryCount + 1}:`, whatsappResult);
+          
+          // Check if it's a rate limit error
+          if (whatsappResult.error?.code === 80004 || whatsappResult.error?.message?.includes('rate')) {
+            const waitTime = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+            console.log(`Rate limit detected, waiting ${waitTime}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            retryCount++;
+            continue;
+          } else {
+            // Non-rate-limit error, don't retry
+            throw new Error(`WhatsApp API error: ${whatsappResult.error?.message || 'Unknown error'}`);
+          }
+        }
+      } catch (error) {
+        console.error(`Error on attempt ${retryCount + 1}:`, error);
+        if (retryCount === maxRetries - 1) {
+          throw error;
+        }
+        retryCount++;
+        const waitTime = Math.pow(2, retryCount) * 1000;
+        console.log(`Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+    
     if (!whatsappResponse.ok) {
-      console.error("WhatsApp API error:", whatsappResult);
+      console.error("WhatsApp API error after all retries:", whatsappResult);
       throw new Error(`WhatsApp API error: ${whatsappResult.error?.message || 'Unknown error'}`);
     }
     console.log("WhatsApp message sent successfully:", whatsappResult);

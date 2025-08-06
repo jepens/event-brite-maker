@@ -93,7 +93,7 @@ export function QRDialog({
                       <p><strong>Short Code:</strong> {ticket.short_code}</p>
                     )}
                     <p><strong>Status:</strong> {ticket.status}</p>
-                    <p><strong>Issued:</strong> {formatDateTimeForDisplay(ticket.issued_at)}</p>
+                    <p><strong>Issued:</strong> {ticket.issued_at ? formatDateTimeForDisplay(ticket.issued_at) : 'Not available'}</p>
                   </div>
                 </div>
 

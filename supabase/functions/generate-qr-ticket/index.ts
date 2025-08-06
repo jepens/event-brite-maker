@@ -158,6 +158,7 @@ const handler = async (req) => {
     // Send email notification (if enabled)
     if (finalNotificationOptions.sendEmail && registration.participant_email) {
       const emailPayload = {
+        registration_id: registration_id,
         participant_email: registration.participant_email,
         participant_name: registration.participant_name,
         event_name: registration.events.name,
@@ -169,6 +170,7 @@ const handler = async (req) => {
       };
 
       console.log("Sending email notification with payload:", emailPayload);
+      console.log("Email registration_id:", registration_id);
 
       // Invoke the 'send-ticket-email' Edge Function to send the email
       const emailResponse = await supabase.functions.invoke('send-ticket-email', {
@@ -189,9 +191,16 @@ const handler = async (req) => {
     // Send WhatsApp notification (if enabled and phone number provided)
     if (finalNotificationOptions.sendWhatsApp && registration.events?.whatsapp_enabled && registration.phone_number) {
       console.log("Sending WhatsApp notification for registration:", registration_id);
+      console.log("WhatsApp template name from env:", Deno.env.get('WHATSAPP_TEMPLATE_NAME'));
       
       const whatsappResponse = await supabase.functions.invoke('send-whatsapp-ticket', {
-        body: { registration_id }
+        body: { 
+          registration_id,
+          template_name: Deno.env.get('WHATSAPP_TEMPLATE_NAME') || 'ticket_confirmation',
+          language_code: 'id',
+          include_header: true,
+          use_short_params: false
+        }
       });
 
       if (whatsappResponse.error) {

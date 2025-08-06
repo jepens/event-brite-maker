@@ -74,6 +74,16 @@ export interface RegistrationData {
   checkin_at?: string;
   checkin_location?: string;
   checkin_notes?: string;
+  // Common custom fields
+  member_number?: string;
+  company?: string;
+  position?: string;
+  department?: string;
+  address?: string;
+  city?: string;
+  dietary_restrictions?: string;
+  special_requests?: string;
+  // Raw custom data for other fields
   custom_data?: Record<string, unknown>;
   event_custom_fields?: CustomField[];
 }
@@ -89,7 +99,8 @@ export class ExportService {
         .select('*')
         .order('updated_at', { ascending: false });
 
-      if (eventId) {
+      // Only add event filter if eventId is provided and not 'all'
+      if (eventId && eventId !== 'all' && eventId.trim() !== '') {
         query = query.or(`event_id.eq.${eventId},event_id.is.null`);
       }
 
@@ -152,6 +163,11 @@ export class ExportService {
    */
   static async getEventCustomFields(eventId: string): Promise<CustomField[]> {
     try {
+      // Return empty array if eventId is 'all' or invalid
+      if (!eventId || eventId === 'all' || eventId.trim() === '') {
+        return [];
+      }
+
       const { data: event, error } = await supabase
         .from('events')
         .select('custom_fields')
@@ -241,24 +257,47 @@ export class ExportService {
 
       console.log('📊 Raw data from database:', data?.length || 0, 'records');
 
-      let mappedData = (data || []).map(registration => ({
-        id: registration.id,
-        participant_name: registration.participant_name,
-        participant_email: registration.participant_email,
-        phone_number: registration.phone_number || '',
-        status: registration.status,
-        registered_at: registration.registered_at,
-        event_name: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.name || 'Unknown Event',
-        event_date: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.event_date || '',
-        event_location: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.location || '',
-        ticket_code: registration.tickets?.[0]?.qr_code || '',
-        ticket_short_code: registration.tickets?.[0]?.short_code || '',
-        checkin_at: registration.tickets?.[0]?.checkin_at || '',
-        checkin_location: registration.tickets?.[0]?.checkin_location || '',
-        checkin_notes: registration.tickets?.[0]?.checkin_notes || '',
-        custom_data: registration.custom_data,
-        event_custom_fields: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.custom_fields || []
-      }));
+      let mappedData = (data || []).map(registration => {
+        // Extract common custom fields
+        const customData = registration.custom_data || {};
+        const memberNumber = customData.member_number || customData.nomor_anggota || customData['Nomor Anggota'] || '';
+        const company = customData.company || customData.instansi || customData.perusahaan || customData['Perusahaan'] || customData['Instansi'] || '';
+        const position = customData.position || customData.jabatan || customData['Jabatan'] || '';
+        const department = customData.department || customData.bagian || customData['Department'] || customData['Bagian'] || '';
+        const address = customData.address || customData.alamat || customData['Address'] || customData['Alamat'] || '';
+        const city = customData.city || customData.kota || customData['City'] || customData['Kota'] || '';
+        const dietaryRestrictions = customData.dietary_restrictions || customData['Dietary Restrictions'] || customData['Pembatasan Diet'] || '';
+        const specialRequests = customData.special_requests || customData['Special Requests'] || customData['Permintaan Khusus'] || '';
+
+        return {
+          id: registration.id,
+          participant_name: registration.participant_name,
+          participant_email: registration.participant_email,
+          phone_number: registration.phone_number || '',
+          status: registration.status,
+          registered_at: registration.registered_at,
+          event_name: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.name || 'Unknown Event',
+          event_date: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.event_date || '',
+          event_location: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.location || '',
+          ticket_code: registration.tickets?.[0]?.qr_code || '',
+          ticket_short_code: registration.tickets?.[0]?.short_code || '',
+          checkin_at: registration.tickets?.[0]?.checkin_at || '',
+          checkin_location: registration.tickets?.[0]?.checkin_location || '',
+          checkin_notes: registration.tickets?.[0]?.checkin_notes || '',
+          // Common custom fields
+          member_number: memberNumber,
+          company: company,
+          position: position,
+          department: department,
+          address: address,
+          city: city,
+          dietary_restrictions: dietaryRestrictions,
+          special_requests: specialRequests,
+          // Raw custom data for other fields
+          custom_data: registration.custom_data,
+          event_custom_fields: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.custom_fields || []
+        };
+      });
 
       // Apply check-in status filter
       if (config.filters.checkinStatus && config.filters.checkinStatus !== 'all') {
@@ -290,6 +329,19 @@ export class ExportService {
       'Tanggal Registrasi',
       'Nama Event'
     ];
+
+    // Add common custom fields that are commonly used
+    const commonCustomHeaders = [
+      'Nomor Anggota',
+      'Perusahaan/Instansi',
+      'Jabatan',
+      'Department/Bagian',
+      'Alamat',
+      'Kota',
+      'Pembatasan Diet',
+      'Permintaan Khusus'
+    ];
+    baseHeaders.push(...commonCustomHeaders);
 
     // Add optional fields based on config
     if (config.includeCheckinData) {
@@ -328,19 +380,28 @@ export class ExportService {
         phone_number: registration.phone_number || '',
         status: registration.status,
         registered_at: registration.registered_at,
-        event_name: registration.event_name
+        event_name: registration.event_name,
+        // Common custom fields
+        'Nomor Anggota': registration.member_number || '',
+        'Perusahaan/Instansi': registration.company || '',
+        'Jabatan': registration.position || '',
+        'Department/Bagian': registration.department || '',
+        'Alamat': registration.address || '',
+        'Kota': registration.city || '',
+        'Pembatasan Diet': registration.dietary_restrictions || '',
+        'Permintaan Khusus': registration.special_requests || ''
       };
 
       // Add optional fields based on config
       if (config.includeCheckinData) {
-        baseData['checkin_at'] = registration.checkin_at || '';
-        baseData['checkin_location'] = registration.checkin_location || '';
-        baseData['checkin_notes'] = registration.checkin_notes || '';
+        baseData['Waktu Check-in'] = registration.checkin_at || '';
+        baseData['Lokasi Check-in'] = registration.checkin_location || '';
+        baseData['Catatan Check-in'] = registration.checkin_notes || '';
       }
 
       if (config.includeTickets) {
-        baseData['ticket_code'] = registration.ticket_code || '';
-        baseData['ticket_short_code'] = registration.ticket_short_code || '';
+        baseData['Kode Tiket'] = registration.ticket_code || '';
+        baseData['Kode Pendek'] = registration.ticket_short_code || '';
       }
 
       // Add custom fields
@@ -444,11 +505,19 @@ export class ExportService {
       'Status': 'status',
       'Tanggal Registrasi': 'registered_at',
       'Nama Event': 'event_name',
-      'Waktu Check-in': 'checkin_at',
-      'Lokasi Check-in': 'checkin_location',
-      'Catatan Check-in': 'checkin_notes',
-      'Kode Tiket': 'ticket_code',
-      'Kode Pendek': 'ticket_short_code'
+      'Nomor Anggota': 'Nomor Anggota',
+      'Perusahaan/Instansi': 'Perusahaan/Instansi',
+      'Jabatan': 'Jabatan',
+      'Department/Bagian': 'Department/Bagian',
+      'Alamat': 'Alamat',
+      'Kota': 'Kota',
+      'Pembatasan Diet': 'Pembatasan Diet',
+      'Permintaan Khusus': 'Permintaan Khusus',
+      'Waktu Check-in': 'Waktu Check-in',
+      'Lokasi Check-in': 'Lokasi Check-in',
+      'Catatan Check-in': 'Catatan Check-in',
+      'Kode Tiket': 'Kode Tiket',
+      'Kode Pendek': 'Kode Pendek'
     };
     
     const csvHeaders = headers.join(',');
@@ -503,11 +572,19 @@ export class ExportService {
         'Status': 'status',
         'Tanggal Registrasi': 'registered_at',
         'Nama Event': 'event_name',
-        'Waktu Check-in': 'checkin_at',
-        'Lokasi Check-in': 'checkin_location',
-        'Catatan Check-in': 'checkin_notes',
-        'Kode Tiket': 'ticket_code',
-        'Kode Pendek': 'ticket_short_code'
+        'Nomor Anggota': 'Nomor Anggota',
+        'Perusahaan/Instansi': 'Perusahaan/Instansi',
+        'Jabatan': 'Jabatan',
+        'Department/Bagian': 'Department/Bagian',
+        'Alamat': 'Alamat',
+        'Kota': 'Kota',
+        'Pembatasan Diet': 'Pembatasan Diet',
+        'Permintaan Khusus': 'Permintaan Khusus',
+        'Waktu Check-in': 'Waktu Check-in',
+        'Lokasi Check-in': 'Lokasi Check-in',
+        'Catatan Check-in': 'Catatan Check-in',
+        'Kode Tiket': 'Kode Tiket',
+        'Kode Pendek': 'Kode Pendek'
       };
 
       // Prepare data for Excel
@@ -556,6 +633,14 @@ export class ExportService {
         else if (header === 'Status') width = 15;
         else if (header === 'Tanggal Registrasi') width = 20;
         else if (header === 'Nama Event') width = 30;
+        else if (header === 'Nomor Anggota') width = 18;
+        else if (header === 'Perusahaan/Instansi') width = 30;
+        else if (header === 'Jabatan') width = 20;
+        else if (header === 'Department/Bagian') width = 25;
+        else if (header === 'Alamat') width = 35;
+        else if (header === 'Kota') width = 15;
+        else if (header === 'Pembatasan Diet') width = 25;
+        else if (header === 'Permintaan Khusus') width = 30;
         else if (header === 'Waktu Check-in') width = 20;
         else if (header === 'Lokasi Check-in') width = 25;
         else if (header === 'Catatan Check-in') width = 30;
@@ -616,11 +701,19 @@ export class ExportService {
         'Status': 'status',
         'Tanggal Registrasi': 'registered_at',
         'Nama Event': 'event_name',
-        'Waktu Check-in': 'checkin_at',
-        'Lokasi Check-in': 'checkin_location',
-        'Catatan Check-in': 'checkin_notes',
-        'Kode Tiket': 'ticket_code',
-        'Kode Pendek': 'ticket_short_code'
+        'Nomor Anggota': 'Nomor Anggota',
+        'Perusahaan/Instansi': 'Perusahaan/Instansi',
+        'Jabatan': 'Jabatan',
+        'Department/Bagian': 'Department/Bagian',
+        'Alamat': 'Alamat',
+        'Kota': 'Kota',
+        'Pembatasan Diet': 'Pembatasan Diet',
+        'Permintaan Khusus': 'Permintaan Khusus',
+        'Waktu Check-in': 'Waktu Check-in',
+        'Lokasi Check-in': 'Lokasi Check-in',
+        'Catatan Check-in': 'Catatan Check-in',
+        'Kode Tiket': 'Kode Tiket',
+        'Kode Pendek': 'Kode Pendek'
       };
 
       // Initialize PDF

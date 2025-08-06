@@ -103,6 +103,16 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+
+  // Validate eventId on component mount
+  useEffect(() => {
+    if (!eventId || eventId.trim() === '') {
+      console.error('❌ ImportWizard: Invalid eventId provided:', eventId);
+      setError('Invalid event ID. Please refresh the page and try again.');
+    } else {
+      console.log('✅ ImportWizard: Valid eventId:', eventId);
+    }
+  }, [eventId]);
   
   // Step data
   const [file, setFile] = useState<File | null>(null);
@@ -264,6 +274,12 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
   const handleValidationComplete = useCallback(async () => {
     if (!file || !selectedTemplate || !previewData) return;
     
+    // Validate eventId before proceeding
+    if (!eventId || eventId.trim() === '') {
+      setError('Invalid event ID. Please refresh the page and try again.');
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
@@ -274,7 +290,7 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
       const progress = await ImportService.importData(
         file,
         {
-          eventId: importConfig.eventId,
+          eventId: eventId, // Use the validated eventId directly
           fileType: file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'excel',
           mapping: fieldMapping, // Use flexible field mapping directly
           validationRules: selectedTemplate.validation_rules || {},
@@ -308,7 +324,7 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
     } finally {
       setLoading(false);
     }
-  }, [file, selectedTemplate, previewData, importConfig, fieldMapping, onImportComplete, goToStep]);
+  }, [file, selectedTemplate, previewData, importConfig, fieldMapping, onImportComplete, goToStep, eventId]);
 
   // Advanced features handlers
   const handleTemplateLibraryOpen = () => {
