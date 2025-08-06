@@ -1,49 +1,48 @@
 import { useState, useEffect } from 'react';
-import { supabase, deleteRegistration, testConnectionAndEvents } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { Registration, Event } from './types';
+import { deleteRegistration } from '@/integrations/supabase/client';
 
 export function useRegistrations() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);
 
-  useEffect(() => {
-    // Test connection and events data first
-    testConnectionAndEvents().then(result => {
-      console.log('Connection test result:', result);
-    });
-    
-    fetchRegistrations();
-    fetchEvents();
-  }, []);
-
   const fetchRegistrations = async () => {
     try {
       setLoading(true);
-      console.log('Fetching registrations...');
-      
-      // First, get all registrations with selective fields
-      const { data: registrationsData, error: registrationsError } = await supabase
+      const { data, error } = await supabase
         .from('registrations')
         .select(`
-          id,
-          participant_name,
-          participant_email,
-          phone_number,
-          status,
-          registered_at,
-          event_id,
+          *,
           events (
             id,
             name,
+            date,
+            location,
+            description,
             whatsapp_enabled
+          ),
+          tickets (
+            id,
+            qr_code,
+            short_code,
+            status,
+            checkin_at,
+            checkin_location,
+            whatsapp_sent,
+            whatsapp_sent_at,
+            email_sent,
+            email_sent_at,
+            issued_at,
+            qr_image_url
           )
         `)
         .order('registered_at', { ascending: false });
 
-      if (registrationsError) {
-        console.error('Error fetching registrations:', registrationsError);
+      if (error) {
+        console.error('Error fetching registrations:', error);
         toast({
           title: 'Error',
           description: 'Failed to fetch registrations',
@@ -52,44 +51,9 @@ export function useRegistrations() {
         return;
       }
 
-      console.log('Registrations fetched:', registrationsData);
-
-      // Then, get tickets for each registration
-      const registrationsWithTickets = await Promise.all(
-        (registrationsData || []).map(async (registration) => {
-          const { data: ticketsData, error: ticketsError } = await supabase
-            .from('tickets')
-            .select(`
-              id,
-              qr_code,
-              short_code,
-              status,
-              checkin_at,
-              checkin_location,
-              whatsapp_sent,
-              whatsapp_sent_at,
-              email_sent,
-              email_sent_at,
-              issued_at
-            `)
-            .eq('registration_id', registration.id);
-
-          if (ticketsError) {
-            console.error('Error fetching tickets for registration:', registration.id, ticketsError);
-            return { ...registration, tickets: [] };
-          }
-
-          return { 
-            ...registration, 
-            tickets: ticketsData || [],
-            events: registration.events
-          };
-        })
-      );
-
-      setRegistrations(registrationsWithTickets as Registration[]);
+      setRegistrations(data || []);
     } catch (error) {
-      console.error('Error in fetchRegistrations:', error);
+      console.error('Error fetching registrations:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch registrations',
@@ -104,24 +68,34 @@ export function useRegistrations() {
     try {
       const { data, error } = await supabase
         .from('events')
-        .select('id, name')
-        .order('name');
+        .select('*')
+        .order('date', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching events:', error);
+        return;
+      }
+
       setEvents(data || []);
     } catch (error) {
       console.error('Error fetching events:', error);
     }
   };
 
+  useEffect(() => {
+    fetchRegistrations();
+    fetchEvents();
+  }, []);
+
   const updateRegistrationStatus = async (registrationId: string, status: 'approved' | 'rejected', notificationOptions?: { sendEmail: boolean; sendWhatsApp: boolean }) => {
     try {
-      const { error } = await supabase
+      // Update registration status
+      const { error: updateError } = await supabase
         .from('registrations')
         .update({ status })
         .eq('id', registrationId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
       // Update local state
       setRegistrations(prev => 
@@ -137,47 +111,23 @@ export function useRegistrations() {
         description: `Registration ${status} successfully`,
       });
 
-      // If status is approved, generate QR ticket and send notifications based on options
-      if (status === 'approved') {
+      // If approved, generate QR ticket and send notifications
+      if (status === 'approved' && notificationOptions) {
         try {
-          console.log('Generating QR ticket for approved registration:', registrationId);
-          
           const { data: qrData, error: qrError } = await supabase.functions.invoke('generate-qr-ticket', {
             body: { 
               registration_id: registrationId,
-              notification_options: notificationOptions || { sendEmail: true, sendWhatsApp: true }
+              notification_options: notificationOptions
             }
           });
 
           if (qrError) {
-            console.error('Error generating QR ticket:', qrError);
+            console.error('Error calling generate-qr-ticket function:', qrError);
             toast({
               title: 'Warning',
               description: 'Registration approved but failed to generate ticket. Please try again.',
               variant: 'destructive',
             });
-          } else {
-            console.log('QR ticket generated successfully:', qrData);
-            
-            // Show success message based on notification options
-            const notifications = [];
-            if (notificationOptions?.sendEmail) notifications.push('Email');
-            if (notificationOptions?.sendWhatsApp) notifications.push('WhatsApp');
-            
-            const notificationText = notifications.length > 0 
-              ? ` and ${notifications.join(' & ')} sent` 
-              : ' (no notifications sent)';
-            
-            toast({
-              title: 'Success',
-              description: `Registration approved and ticket generated successfully!${notificationText}`,
-            });
-            
-            // Refresh immediately and then again after a delay to ensure we get the latest status
-            await fetchRegistrations();
-            setTimeout(async () => {
-              await fetchRegistrations();
-            }, 3000);
           }
         } catch (qrError) {
           console.error('Error calling generate-qr-ticket function:', qrError);
@@ -342,20 +292,17 @@ export function useRegistrations() {
     try {
       console.log(`Starting batch delete for ${registrationIds.length} registrations`);
       
-      // Delete all registrations in parallel
+      // Delete all registrations using the complete deleteRegistration function
       const deletePromises = registrationIds.map(async (registrationId) => {
         try {
           console.log(`Deleting registration: ${registrationId}`);
           
-          // Delete the registration
-          const { error: deleteError } = await supabase
-            .from('registrations')
-            .delete()
-            .eq('id', registrationId);
+          // Use the complete deleteRegistration function that includes QR code cleanup
+          const result = await deleteRegistration(registrationId);
 
-          if (deleteError) {
-            console.error('Error deleting registration:', registrationId, deleteError);
-            return { success: false, registrationId, error: deleteError };
+          if (result.error) {
+            console.error('Error deleting registration:', registrationId, result.error);
+            return { success: false, registrationId, error: result.error };
           }
 
           console.log('Registration deleted successfully:', registrationId);

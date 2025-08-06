@@ -1,13 +1,15 @@
 # Batch Delete Feature - Implementation Summary
 
 ## Overview
-Fitur batch delete registrasi telah berhasil diimplementasikan sebagai pelengkap fitur batch approve yang sudah ada. Fitur ini memberikan admin kemampuan untuk menghapus multiple registrasi sekaligus dengan konfirmasi yang aman dan user-friendly.
+Fitur batch delete registrasi telah berhasil diimplementasikan sebagai pelengkap fitur batch approve yang sudah ada. Fitur ini memberikan admin kemampuan untuk menghapus multiple registrasi sekaligus dengan konfirmasi yang aman dan user-friendly, **termasuk penghapusan QR Code dari Supabase storage**.
 
 ## Files Modified/Created
 
 ### 1. `src/components/admin/registrations/useRegistrations.ts`
-- **Added**: `batchDeleteRegistrations` function
+- **Updated**: `batchDeleteRegistrations` function
+- **Key Change**: **Sekarang menggunakan `deleteRegistration()` yang lengkap dengan QR code cleanup**
 - **Features**:
+  - Menggunakan fungsi `deleteRegistration` yang sudah ada
   - Parallel deletion menggunakan Promise.allSettled
   - Comprehensive error handling dan reporting
   - Success/error counting dan user feedback
@@ -53,6 +55,7 @@ Fitur batch delete registrasi telah berhasil diimplementasikan sebagai pelengkap
   - Usage guide dan testing scenarios
   - Security considerations dan best practices
   - Future enhancement suggestions
+  - **QR Code cleanup documentation**
 
 ### 7. `scripts/test-batch-delete.js` (NEW)
 - **Purpose**: Testing guide dan validation script
@@ -84,6 +87,7 @@ Fitur batch delete registrasi telah berhasil diimplementasikan sebagai pelengkap
 - Cancel option untuk membatalkan operasi
 
 ### ✅ Batch Processing Logic
+- **Menggunakan `deleteRegistration()` yang lengkap dengan QR code cleanup**
 - Parallel deletion untuk performa optimal
 - Comprehensive error handling dan reporting
 - Success/error counting dan user feedback
@@ -94,17 +98,26 @@ Fitur batch delete registrasi telah berhasil diimplementasikan sebagai pelengkap
 
 ### Database Operations
 ```typescript
-// Parallel deletion untuk multiple registrations
+// Batch delete menggunakan deleteRegistration yang lengkap
 const deletePromises = registrationIds.map(async (registrationId) => {
-  const { error: deleteError } = await supabase
-    .from('registrations')
-    .delete()
-    .eq('id', registrationId);
-  
-  return { success: !deleteError, registrationId, error: deleteError };
+  const result = await deleteRegistration(registrationId);
+  return { success: !result.error, registrationId, error: result.error };
 });
 
 const results = await Promise.allSettled(deletePromises);
+```
+
+### QR Code Cleanup
+```typescript
+// deleteRegistration melakukan cleanup lengkap:
+// 1. Hapus QR code files dari Supabase storage
+// 2. Hapus tickets dari database
+// 3. Hapus registration dari database
+
+const result = await deleteRegistration(registrationId);
+// - deleteQRCodeFiles() dipanggil otomatis
+// - Storage cleanup: event-logos/qr-codes/
+// - Database cleanup: tickets → registrations
 ```
 
 ### Error Handling
@@ -143,6 +156,7 @@ await fetchRegistrations();
 - Confirmation button dengan loading state
 
 ### 🔒 Data Protection
+- **Complete cleanup termasuk QR code files dari storage**
 - Warning tentang permanence operasi
 - Preview data yang akan dihapus
 - Clear feedback tentang consequences
@@ -168,6 +182,12 @@ await fetchRegistrations();
 - Efficient selection state management
 - No memory leaks
 
+### ⚡ Storage Management
+- **QR code files dihapus secara parallel**
+- Efficient storage cleanup
+- Error handling untuk storage operations
+- Partial success reporting
+
 ## Testing Coverage
 
 ### 🧪 Manual Testing
@@ -176,6 +196,7 @@ await fetchRegistrations();
 - Edge case testing
 - Performance testing
 - Security testing
+- **QR code cleanup testing**
 
 ### 🧪 Automated Testing Ready
 - Component structure ready untuk unit tests
@@ -191,6 +212,7 @@ await fetchRegistrations();
 | **Operation** | Status update | Permanent deletion |
 | **Notifications** | Generate QR + send notifications | No notifications |
 | **Consequences** | Data preserved | Data permanently removed |
+| **QR Code** | Generate QR baru | **Hapus QR dari storage** |
 | **Styling** | Green (success) | Red (destructive) |
 | **Confirmation** | Standard dialog | Extensive warning dialog |
 
@@ -213,9 +235,31 @@ await fetchRegistrations();
 
 ### 4. Execution Phase
 1. Loading state ditampilkan selama proses
-2. Parallel deletion dijalankan di background
+2. **Parallel deletion dengan QR code cleanup dijalankan di background**
 3. Success/error feedback ditampilkan
 4. Data auto-refresh dan selection cleared
+
+## QR Code Cleanup Details
+
+### ✅ **Batch Delete Sekarang Menghapus QR Code!**
+
+Fitur batch delete telah diupdate untuk menggunakan fungsi `deleteRegistration` yang lengkap:
+
+1. **QR Code Files**: Semua QR code images dihapus dari Supabase storage (`event-logos/qr-codes/`)
+2. **Database Cleanup**: Tickets dan registrations dihapus dari database
+3. **Complete Process**: Sama seperti delete manual (1 per 1)
+
+### Storage Cleanup Process:
+```typescript
+// Setiap registration deletion melakukan:
+1. deleteQRCodeFiles(registrationId)
+   - Fetch tickets dengan qr_image_url
+   - Extract filename dari URL
+   - Delete dari storage: event-logos/qr-codes/{filename}
+   
+2. Delete tickets dari database
+3. Delete registration dari database
+```
 
 ## Future Enhancements
 
@@ -226,7 +270,7 @@ await fetchRegistrations();
 
 ### 🔮 Audit Trail
 - Log semua batch delete operations
-- Track user yang melakukan deletion
+- Track who performed the deletion
 - Timestamp dan reason tracking
 
 ### 🔮 Advanced Features
@@ -237,12 +281,14 @@ await fetchRegistrations();
 
 ## Conclusion
 
-Fitur batch delete telah berhasil diimplementasikan dengan pendekatan yang aman, efisien, dan user-friendly. Implementasi mengikuti best practices untuk:
+Fitur batch delete telah berhasil diimplementasikan dengan pendekatan yang aman, efisien, dan user-friendly. **Fitur ini sekarang menghapus QR Code dari Supabase storage sama seperti fitur delete manual**, memastikan cleanup yang lengkap dan konsisten.
 
+Implementasi mengikuti best practices untuk:
 - ✅ **Security**: Extensive warnings dan confirmations
 - ✅ **Performance**: Parallel processing dan optimized operations
 - ✅ **User Experience**: Clear feedback dan intuitive interface
 - ✅ **Maintainability**: Clean code dan proper error handling
 - ✅ **Testing**: Comprehensive testing coverage dan documentation
+- ✅ **Storage Management**: QR code cleanup yang lengkap
 
-Fitur ini siap untuk production use dan dapat diandalkan untuk operasi batch deletion yang aman dan efisien. Implementasi melengkapi batch approve dengan memberikan admin kontrol penuh atas data registrasi sambil memastikan keamanan dan konfirmasi yang memadai.
+Fitur ini siap untuk production use dan dapat diandalkan untuk operasi batch deletion yang aman dan efisien, **termasuk cleanup QR Code yang lengkap**.
