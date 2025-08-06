@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Users, FileDown, Plus, CheckCircle, Upload } from 'lucide-react';
+import { Users, FileDown, Plus, CheckCircle, Upload, Trash2 } from 'lucide-react';
 import { ImportWizard } from './ImportWizard';
 import { ExportDialog } from './ExportDialog';
 import { Event } from './types';
@@ -9,6 +9,7 @@ interface RegistrationActionsProps {
   downloading: boolean;
   events: Event[];
   selectedPendingCount: number;
+  selectedCount: number;
   currentFilters?: {
     searchTerm?: string;
     statusFilter?: string;
@@ -19,6 +20,7 @@ interface RegistrationActionsProps {
   onImportComplete: () => void;
   onAddParticipant: () => void;
   onBatchApprove: () => void;
+  onBatchDelete: () => void;
 }
 
 export function RegistrationActions({
@@ -26,12 +28,14 @@ export function RegistrationActions({
   downloading,
   events,
   selectedPendingCount,
+  selectedCount,
   currentFilters,
   onDownloadCSV,
   onDownloadExcel,
   onImportComplete,
   onAddParticipant,
   onBatchApprove,
+  onBatchDelete,
 }: RegistrationActionsProps) {
   // Debug logging for events
   console.log('RegistrationActions - Events:', events);
@@ -48,9 +52,9 @@ export function RegistrationActions({
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Users className="h-4 w-4" />
           {filteredRegistrationsCount} registrations
-          {selectedPendingCount > 0 && (
+          {selectedCount > 0 && (
             <span className="text-blue-600 font-medium">
-              ({selectedPendingCount} selected)
+              ({selectedCount} selected)
             </span>
           )}
         </div>
@@ -64,6 +68,17 @@ export function RegistrationActions({
             >
               <CheckCircle className="h-4 w-4 mr-2" />
               Batch Approve ({selectedPendingCount})
+            </Button>
+          )}
+          {selectedCount > 0 && (
+            <Button
+              onClick={onBatchDelete}
+              disabled={downloading}
+              variant="destructive"
+              size="sm"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Batch Delete ({selectedCount})
             </Button>
           )}
           {events.length > 0 ? (

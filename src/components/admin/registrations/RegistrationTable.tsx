@@ -87,9 +87,9 @@ export function RegistrationTable({
             <TableRow>
               <TableHead className="w-12">
                 <Checkbox
-                  checked={pendingRegistrations.length > 0 && selectedPendingCount === pendingRegistrations.length}
+                  checked={registrations.length > 0 && selectedRegistrations.length === registrations.length}
                   onCheckedChange={(checked) => onSelectAll(checked as boolean)}
-                  disabled={pendingRegistrations.length === 0}
+                  disabled={registrations.length === 0}
                 />
               </TableHead>
               <TableHead>Participant</TableHead>
@@ -108,7 +108,6 @@ export function RegistrationTable({
                   <Checkbox
                     checked={selectedRegistrations.includes(registration.id)}
                     onCheckedChange={(checked) => onSelectionChange(registration.id, checked as boolean)}
-                    disabled={registration.status !== 'pending'}
                   />
                 </TableCell>
                 <TableCell>

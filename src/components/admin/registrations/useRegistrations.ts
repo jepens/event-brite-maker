@@ -338,6 +338,80 @@ export function useRegistrations() {
     }
   };
 
+  const batchDeleteRegistrations = async (registrationIds: string[]) => {
+    try {
+      console.log(`Starting batch delete for ${registrationIds.length} registrations`);
+      
+      // Delete all registrations in parallel
+      const deletePromises = registrationIds.map(async (registrationId) => {
+        try {
+          console.log(`Deleting registration: ${registrationId}`);
+          
+          // Delete the registration
+          const { error: deleteError } = await supabase
+            .from('registrations')
+            .delete()
+            .eq('id', registrationId);
+
+          if (deleteError) {
+            console.error('Error deleting registration:', registrationId, deleteError);
+            return { success: false, registrationId, error: deleteError };
+          }
+
+          console.log('Registration deleted successfully:', registrationId);
+          return { success: true, registrationId };
+        } catch (error) {
+          console.error('Error deleting registration:', registrationId, error);
+          return { success: false, registrationId, error };
+        }
+      });
+
+      // Wait for all deletions to complete
+      const results = await Promise.allSettled(deletePromises);
+      
+      // Process results
+      const successful = results.filter(result => 
+        result.status === 'fulfilled' && result.value.success
+      ).length;
+      const failed = results.length - successful;
+
+      // Update local state by removing deleted registrations
+      setRegistrations(prev => 
+        prev.filter(reg => !registrationIds.includes(reg.id))
+      );
+
+      // Show success/error messages
+      if (successful > 0 && failed === 0) {
+        toast({
+          title: 'Success',
+          description: `${successful} registration${successful > 1 ? 's' : ''} deleted successfully`,
+        });
+      } else if (successful > 0 && failed > 0) {
+        toast({
+          title: 'Partial Success',
+          description: `${successful} registration${successful > 1 ? 's' : ''} deleted successfully, ${failed} failed. Check logs for details.`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to delete registrations. Please try again.',
+          variant: 'destructive',
+        });
+      }
+
+      // Refresh registrations to get updated data
+      await fetchRegistrations();
+    } catch (error) {
+      console.error('Error batch deleting registrations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete registrations',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return {
     registrations,
     loading,
@@ -345,5 +419,6 @@ export function useRegistrations() {
     updateRegistrationStatus,
     deleteRegistrationById,
     batchApproveRegistrations,
+    batchDeleteRegistrations,
   };
 } 

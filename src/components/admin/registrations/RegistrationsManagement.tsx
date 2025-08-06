@@ -12,6 +12,7 @@ import { QRDialog } from './QRDialog';
 import { DeleteDialog } from './DeleteDialog';
 import { ApproveDialog, NotificationOptions } from './ApproveDialog';
 import { BatchApproveDialog } from './BatchApproveDialog';
+import { BatchDeleteDialog } from './BatchDeleteDialog';
 import { ParticipantDialog } from './ParticipantDialog';
 import { Registration, Ticket } from './types';
 import { useMobile } from '@/hooks/use-mobile';
@@ -24,6 +25,7 @@ export function RegistrationsManagement() {
     updateRegistrationStatus,
     deleteRegistrationById,
     batchApproveRegistrations,
+    batchDeleteRegistrations,
   } = useRegistrations();
   
   const { isMobile } = useMobile();
@@ -41,10 +43,12 @@ export function RegistrationsManagement() {
   const [registrationToApprove, setRegistrationToApprove] = useState<Registration | null>(null);
   const [approving, setApproving] = useState(false);
 
-  // Batch approve state
+  // Batch operations state
   const [selectedRegistrations, setSelectedRegistrations] = useState<string[]>([]);
   const [showBatchApproveDialog, setShowBatchApproveDialog] = useState(false);
+  const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false);
   const [batchApproving, setBatchApproving] = useState(false);
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   // Participant dialog state
   const [showParticipantDialog, setShowParticipantDialog] = useState(false);
@@ -128,8 +132,8 @@ export function RegistrationsManagement() {
 
   const handleSelectAll = (selected: boolean) => {
     if (selected) {
-      const pendingIds = pendingRegistrations.map(reg => reg.id);
-      setSelectedRegistrations(pendingIds);
+      const allIds = paginatedRegistrations.map(reg => reg.id);
+      setSelectedRegistrations(allIds);
     } else {
       setSelectedRegistrations([]);
     }
@@ -137,6 +141,10 @@ export function RegistrationsManagement() {
 
   const handleBatchApprove = () => {
     setShowBatchApproveDialog(true);
+  };
+
+  const handleBatchDelete = () => {
+    setShowBatchDeleteDialog(true);
   };
 
   const handleBatchApproveConfirm = async (registrationIds: string[], notificationOptions: NotificationOptions) => {
@@ -149,6 +157,19 @@ export function RegistrationsManagement() {
       console.error('Error batch approving registrations:', error);
     } finally {
       setBatchApproving(false);
+    }
+  };
+
+  const handleBatchDeleteConfirm = async (registrationIds: string[]) => {
+    try {
+      setBatchDeleting(true);
+      await batchDeleteRegistrations(registrationIds);
+      setShowBatchDeleteDialog(false);
+      setSelectedRegistrations([]); // Clear selection after successful batch delete
+    } catch (error) {
+      console.error('Error batch deleting registrations:', error);
+    } finally {
+      setBatchDeleting(false);
     }
   };
 
@@ -328,7 +349,9 @@ export function RegistrationsManagement() {
             onImportComplete={handleImportComplete}
             onAddParticipant={handleAddParticipant}
             onBatchApprove={handleBatchApprove}
+            onBatchDelete={handleBatchDelete}
             selectedPendingCount={selectedPendingCount}
+            selectedCount={selectedRegistrations.length}
           />
 
           <RegistrationFilters
@@ -420,6 +443,14 @@ export function RegistrationsManagement() {
         onClose={() => setShowBatchApproveDialog(false)}
         onApprove={handleBatchApproveConfirm}
         loading={batchApproving}
+      />
+
+      <BatchDeleteDialog
+        selectedRegistrations={selectedRegistrationsData}
+        isOpen={showBatchDeleteDialog}
+        onClose={() => setShowBatchDeleteDialog(false)}
+        onDelete={handleBatchDeleteConfirm}
+        loading={batchDeleting}
       />
 
       <ParticipantDialog
