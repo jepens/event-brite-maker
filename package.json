@@ -57,6 +57,7 @@
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.462.0",
+    "lovable-tagger": "^1.1.8",
     "next-themes": "^0.3.0",
     "postcss": "^8.4.47",
     "puppeteer": "^24.15.0",
@@ -94,7 +95,6 @@
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
-    "lovable-tagger": "^1.1.8",
     "typescript-eslint": "^8.0.1"
   }
 }
