@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { CheckCircle, XCircle, Clock, QrCode, Mail, Trash2, Edit } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, QrCode, Mail, Trash2, Edit, MessageSquare } from 'lucide-react';
 import { Registration } from './types';
 import { formatDateForDisplay, formatTimeForDisplay24 } from '@/lib/date-utils';
 
@@ -15,6 +15,7 @@ interface RegistrationTableProps {
   onUpdateStatus: (registrationId: string, status: 'approved' | 'rejected', notificationOptions?: { sendEmail: boolean; sendWhatsApp: boolean }) => void;
   onViewTicket: (registration: Registration) => void;
   onResendEmail: (registration: Registration) => void;
+  onResendWhatsApp: (registration: Registration) => void;
   onDeleteRegistration: (registration: Registration) => void;
   onShowApproveDialog: (registration: Registration) => void;
   onEditParticipant: (registration: Registration) => void;
@@ -28,6 +29,7 @@ export function RegistrationTable({
   onUpdateStatus,
   onViewTicket,
   onResendEmail,
+  onResendWhatsApp,
   onDeleteRegistration,
   onShowApproveDialog,
   onEditParticipant,
@@ -230,6 +232,16 @@ export function RegistrationTable({
                           <Mail className="h-4 w-4 mr-2" />
                           Resend Email
                         </Button>
+                        {typeof registration.events === 'object' && registration.events && 'whatsapp_enabled' in registration.events && (registration.events as Record<string, unknown>).whatsapp_enabled && registration.phone_number && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => onResendWhatsApp(registration)}
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Resend WhatsApp
+                          </Button>
+                        )}
                       </>
                     )}
                     <Button

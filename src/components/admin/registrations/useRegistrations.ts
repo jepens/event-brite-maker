@@ -363,6 +363,7 @@ export function useRegistrations() {
     registrations,
     loading,
     events,
+    fetchRegistrations,
     updateRegistrationStatus,
     deleteRegistrationById,
     batchApproveRegistrations,
