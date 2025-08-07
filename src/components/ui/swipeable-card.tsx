@@ -59,14 +59,17 @@ interface SwipeableRegistrationCardProps {
     participant_name: string;
     participant_email: string;
     status: string;
+    phone_number?: string;
     events?: {
       name: string;
+      whatsapp_enabled?: boolean;
     };
   };
   onApprove?: () => void;
   onReject?: () => void;
   onViewTicket?: () => void;
   onResendEmail?: () => void;
+  onResendWhatsApp?: () => void;
   onDelete?: () => void;
   className?: string;
 }
@@ -77,6 +80,7 @@ export function SwipeableRegistrationCard({
   onReject,
   onViewTicket,
   onResendEmail,
+  onResendWhatsApp,
   onDelete,
   className,
 }: SwipeableRegistrationCardProps) {
@@ -170,6 +174,14 @@ export function SwipeableRegistrationCard({
               >
                 Resend Email
               </button>
+              {registration.phone_number && registration.events?.whatsapp_enabled && (
+                <button
+                  onClick={onResendWhatsApp}
+                  className="action-button flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium mobile-transition"
+                >
+                  Resend WhatsApp
+                </button>
+              )}
             </div>
             
             <button

@@ -94,44 +94,56 @@ export function useQRScanner() {
         console.error('RPC error:', error);
         setScanResult({
           success: false,
-          message: 'Error processing check-in. Please try again.',
+          message: 'Error memproses check-in. Silakan coba lagi.',
         });
         return;
       }
 
-      const result = data as {
-        success: boolean;
-        message: string;
-        error?: string;
-        ticket?: {
-          id: string;
-          qr_code: string;
-          short_code: string;
-          status: string;
-          checkin_at: string;
-        };
-        participant?: {
-          name: string;
-          email: string;
-        };
-        event?: {
-          name: string;
-          date: string;
-          location: string;
-        };
-      };
+             const result = data as {
+         success: boolean;
+         message: string;
+         error?: string;
+         ticket?: {
+           id: string;
+           qr_code: string;
+           short_code: string;
+           status: string;
+           checkin_at: string;
+         };
+         ticket_info?: {
+           used_at?: string;
+           checkin_at?: string;
+           checkin_location?: string;
+           checkin_notes?: string;
+         };
+         participant?: {
+           name: string;
+           email: string;
+         };
+         event?: {
+           name: string;
+           date: string;
+           location: string;
+         };
+       };
 
-      if (!result.success) {
-        setScanResult({
-          success: false,
-          message: result.error || 'Check-in failed',
-        });
-        return;
-      }
+             if (!result.success) {
+         setScanResult({
+           success: false,
+           message: result.error || 'Check-in gagal',
+           participant: result.participant ? {
+             name: result.participant.name,
+             email: result.participant.email,
+             event_name: result.event?.name || 'Unknown Event',
+           } : undefined,
+           ticket_info: result.ticket_info,
+         });
+         return;
+       }
 
       setScanResult({
         success: true,
-        message: 'Check-in successful!',
+        message: 'Check-in berhasil!',
         participant: {
           name: result.participant?.name || 'Unknown',
           email: result.participant?.email || 'Unknown',
@@ -151,7 +163,7 @@ export function useQRScanner() {
       console.error('Error verifying ticket:', error);
       setScanResult({
         success: false,
-        message: 'Error verifying ticket. Please try again.',
+        message: 'Error memverifikasi ticket. Silakan coba lagi.',
       });
       toast({
         title: 'Error',

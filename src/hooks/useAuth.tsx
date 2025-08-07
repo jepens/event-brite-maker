@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setTimeout(() => {
             console.log('Connection test timeout reached after 10 seconds');
             reject(new Error('Connection test timeout after 10 seconds'));
-          }, 10000);
+          }, 3000);
         });
         
         const { data: testData, error: testError } = await Promise.race([connectionTestPromise, connectionTimeoutPromise]) as { data: unknown; error: unknown };

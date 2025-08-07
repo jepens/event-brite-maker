@@ -1,0 +1,68 @@
+{
+  "name": "import-feature-test",
+  "version": "1.0.0",
+  "description": "Test script for import feature functionality",
+  "type": "module",
+  "main": "test-import.js",
+  "scripts": {
+    "test": "node test-import.js",
+    "test:all": "node test-import.js",
+    "test:quick": "node test-import.js quick",
+    "test:integration": "node test-import.js integration",
+    "test:event": "node test-import.js event",
+    "test:count": "node test-import.js count",
+    "test:csv": "node test-import.js csv",
+    "test:mapping": "node test-import.js mapping",
+    "test:duplicate": "node test-import.js duplicate",
+    "test:validation": "node test-import.js validation",
+    "test:insertion": "node test-import.js insertion",
+    "test:cleanup": "node test-import.js cleanup",
+    "test:batch": "node test-import.js batch",
+    "test:error": "node test-import.js error",
+    "test:setup": "node -e \"console.log('Setting up test environment...'); console.log('Please configure test-config.js with your Supabase credentials');\"",
+    "test:config": "node -e \"console.log('Current configuration:'); console.log('- Check test-config.js for settings'); console.log('- Update SUPABASE_CONFIG.anonKey'); console.log('- Update TEST_EVENT_CONFIG.eventId');\"",
+    "test:help": "node -e \"console.log('Available test commands:'); console.log('npm run test:all - Run all tests'); console.log('npm run test:quick - Run quick test'); console.log('npm run test:duplicate - Test duplicate checking'); console.log('npm run test:batch - Test batch processing'); console.log('npm run test:error - Test error handling');\"",
+    "install:test": "npm install @supabase/supabase-js",
+    "setup:test": "npm run install:test && npm run test:setup",
+    "run:linux": "./run-tests.sh",
+    "run:windows": "run-tests.bat",
+    "run:powershell": "powershell -ExecutionPolicy Bypass -File run-tests.ps1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "node": ">=18.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "test",
+    "import",
+    "supabase",
+    "registration",
+    "batch-processing",
+    "es-module",
+    "nodejs"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "your-repository-url"
+  },
+  "bugs": {
+    "url": "your-repository-url/issues"
+  },
+  "homepage": "your-repository-url#readme",
+  "files": [
+    "test-import.js",
+    "test-config.js",
+    "run-tests.sh",
+    "run-tests.bat",
+    "run-tests.ps1",
+    "README-TEST.md",
+    "QUICK-START.md"
+  ]
+}

@@ -30,18 +30,23 @@ function isRateLimited(phoneNumber) {
   return false;
 }
 function validatePhoneNumber(phone) {
+  // Handle null, undefined, or empty phone numbers
+  if (!phone || typeof phone !== 'string' || phone.trim() === '') {
+    return false;
+  }
+  
   // Enhanced validation for Indonesian phone numbers
   // Support multiple formats: 628xxxxxxxxxx, 08xxxxxxxxxx, 8xxxxxxxxx, xxxxxxxxxx
   const digitsOnly = phone.replace(/\D/g, '');
   
-  // Check if it's already in correct format: 628xxxxxxxxxx (13 digits)
-  if (digitsOnly.startsWith('62') && digitsOnly.length === 13) {
+  // Check if it's already in correct format: 628xxxxxxxxxx (13 digits) or 628xxxxxxxxx (11 digits)
+  if (digitsOnly.startsWith('62') && (digitsOnly.length === 13 || digitsOnly.length === 11)) {
     return true;
   }
   
   // Check if it can be converted to correct format
-  if (digitsOnly.startsWith('08') && digitsOnly.length === 12) {
-    return true; // Can be converted to 628xxxxxxxxxx
+  if (digitsOnly.startsWith('08') && (digitsOnly.length >= 10 && digitsOnly.length <= 13)) {
+    return true; // Can be converted to 628xxxxxxxxxx (08xxxxxxxx, 08xxxxxxxxx, 08xxxxxxxxxx, or 08xxxxxxxxxxx)
   }
   
   if (digitsOnly.startsWith('8') && digitsOnly.length === 11) {
@@ -205,25 +210,44 @@ const handler = async (req)=>{
     if (!registration.phone_number) {
       throw new Error('Phone number not provided for registration');
     }
+    
+    // Validate phone number format
     if (!validatePhoneNumber(registration.phone_number)) {
-      throw new Error('Invalid phone number format. Expected format: 6281314942011, 081314942012, 81314942012, or 1314942012');
+      throw new Error(`Invalid phone number format: ${registration.phone_number}. Expected format: 628xxxxxxxxxx, 08xxxxxxxxxx, 8xxxxxxxxx, or xxxxxxxxxx`);
     }
     
     // Format phone number to WhatsApp format (628xxxxxxxxxx)
     const formatPhoneNumber = (phone) => {
-      const digitsOnly = phone.replace(/\D/g, '');
+      // Handle null, undefined, or empty phone numbers
+      if (!phone || typeof phone !== 'string' || phone.trim() === '') {
+        throw new Error('Phone number is required');
+      }
       
-      if (digitsOnly.startsWith('62') && digitsOnly.length === 13) {
-        return digitsOnly; // Already in correct format
-      } else if (digitsOnly.startsWith('08') && digitsOnly.length === 12) {
-        return '62' + digitsOnly.substring(1); // Convert 08xxxxxxxxxx to 628xxxxxxxxxx
+      // Trim whitespace and remove any non-digit characters
+      const cleanPhone = phone.trim();
+      const digitsOnly = cleanPhone.replace(/\D/g, '');
+      
+      console.log('Phone formatting details:', {
+        original: phone,
+        cleaned: cleanPhone,
+        digitsOnly: digitsOnly,
+        length: digitsOnly.length,
+        startsWith62: digitsOnly.startsWith('62'),
+        startsWith08: digitsOnly.startsWith('08'),
+        startsWith8: digitsOnly.startsWith('8')
+      });
+      
+      if (digitsOnly.startsWith('62') && (digitsOnly.length === 13 || digitsOnly.length === 11)) {
+        return digitsOnly; // Already in correct format (628xxxxxxxxxx or 628xxxxxxxxx)
+      } else if (digitsOnly.startsWith('08') && (digitsOnly.length >= 10 && digitsOnly.length <= 13)) {
+        return '62' + digitsOnly.substring(1); // Convert 08xxxxxxxx, 08xxxxxxxxx, 08xxxxxxxxxx, or 08xxxxxxxxxxx to 628xxxxxxxxxx
       } else if (digitsOnly.startsWith('8') && digitsOnly.length === 11) {
         return '62' + digitsOnly; // Convert 8xxxxxxxxx to 628xxxxxxxxxx
-        } else if (digitsOnly.length === 10 && !digitsOnly.startsWith('0') && !digitsOnly.startsWith('8')) {
-    return '628' + digitsOnly; // Convert xxxxxxxxxx to 628xxxxxxxxxx (assuming it's a mobile number)
-  }
+      } else if (digitsOnly.length === 10 && !digitsOnly.startsWith('0') && !digitsOnly.startsWith('8')) {
+        return '628' + digitsOnly; // Convert xxxxxxxxxx to 628xxxxxxxxxx (assuming it's a mobile number)
+      }
       
-      return phone; // Return original if can't format
+      throw new Error(`Invalid phone number format: ${phone}. Expected format: 628xxxxxxxxxx, 08xxxxxxxxxx, 8xxxxxxxxx, or xxxxxxxxxx`);
     };
     
     const formattedPhoneNumber = formatPhoneNumber(registration.phone_number);
@@ -231,9 +255,10 @@ const handler = async (req)=>{
       original: registration.phone_number,
       formatted: formattedPhoneNumber
     });
-    if (registration.tickets && registration.tickets.whatsapp_sent) {
-      throw new Error('WhatsApp ticket already sent for this registration');
-    }
+    // Allow resending WhatsApp tickets (remove this check for resend functionality)
+    // if (registration.tickets && registration.tickets.whatsapp_sent) {
+    //   throw new Error('WhatsApp ticket already sent for this registration');
+    // }
     // Check rate limiting with more lenient limits for batch operations
     if (isRateLimited(registration.phone_number)) {
       console.warn('Rate limit warning for phone number:', registration.phone_number);

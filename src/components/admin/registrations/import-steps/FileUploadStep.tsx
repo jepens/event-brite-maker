@@ -197,6 +197,20 @@ export function FileUploadStep({ onFileUpload, loading, error }: FileUploadStepP
             </ul>
           </div>
 
+          {/* Template Information */}
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium text-blue-900 mb-2">📋 Format Template</h4>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p><strong>Required Fields:</strong> Nama, Email</p>
+              <p><strong>Optional Fields:</strong> Telepon, Status, Catatan</p>
+              <p><strong>Status Options:</strong> pending, confirmed, cancelled</p>
+              <p><strong>Sample:</strong> Nama,Email,Telepon,Status,Catatan</p>
+            </div>
+            <div className="mt-3 text-xs text-blue-700">
+              💡 <strong>Tip:</strong> Gunakan template yang tersedia di halaman utama untuk format yang benar
+            </div>
+          </div>
+
           {/* Error Display */}
           {(error || fileError) && (
             <Alert variant="destructive">

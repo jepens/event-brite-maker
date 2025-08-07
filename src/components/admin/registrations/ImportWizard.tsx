@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
   Dialog, 
   DialogContent, 
@@ -24,7 +24,10 @@ import {
   ArrowLeft,
   X,
   Loader2,
-  Sparkles
+  Sparkles,
+  Bug,
+  AlertTriangle,
+  Download
 } from 'lucide-react';
 import { ImportService } from '@/lib/import-service';
 import { ImportTemplateService } from '@/lib/import-template-service';
@@ -131,8 +134,19 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
     defaultStatus: 'pending',
     skipDuplicates: true,
     validateOnly: false,
-    batchSize: 100
+    batchSize: 100,
+    fieldMapping: {},
+    validationRules: {}
   });
+
+  // Update importConfig when fieldMapping changes
+  useEffect(() => {
+    setImportConfig(prev => ({
+      ...prev,
+      fieldMapping,
+      validationRules: selectedTemplate?.validation_rules || {}
+    }));
+  }, [fieldMapping, selectedTemplate]);
 
   // Advanced features state
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
@@ -143,6 +157,7 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
   // Animation states
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   // Reset wizard when dialog opens/closes
   useEffect(() => {
@@ -164,6 +179,7 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
     setError(null);
     setLoading(false);
     setShowSuccessAnimation(false);
+    setTestResult(null);
   };
 
   const goToStep = useCallback((step: WizardStep) => {
@@ -336,6 +352,41 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
   };
 
   const handleBatchProcessorOpen = () => {
+    // Check if we have a proper field mapping
+    if (!fieldMapping || Object.keys(fieldMapping).length === 0) {
+      // If no field mapping, try to auto-detect from parsed data
+      if (parsedData && parsedData.headers.length > 0) {
+        console.log('🔍 Auto-detecting field mapping for batch processor...');
+        const autoMapping: Record<string, string> = {};
+        
+        // Auto-detect common fields
+        parsedData.headers.forEach(header => {
+          const headerLower = header.toLowerCase();
+          if (headerLower.includes('nama') || headerLower.includes('name')) {
+            autoMapping.participant_name = header;
+          } else if (headerLower.includes('email') || headerLower.includes('mail')) {
+            autoMapping.participant_email = header;
+          } else if (headerLower.includes('phone') || headerLower.includes('telepon') || headerLower.includes('hp')) {
+            autoMapping.phone_number = header;
+          } else {
+            // Add as custom field
+            autoMapping[`custom_${header.toLowerCase().replace(/\s+/g, '_')}`] = header;
+          }
+        });
+        
+        console.log('✅ Auto-detected field mapping:', autoMapping);
+        setFieldMapping(autoMapping);
+        setImportConfig(prev => ({
+          ...prev,
+          fieldMapping: autoMapping
+        }));
+      } else {
+        // Show error message
+        setError('Silakan selesaikan field mapping terlebih dahulu sebelum menggunakan batch processor');
+        return;
+      }
+    }
+    
     setShowBatchProcessor(true);
   };
 
@@ -356,6 +407,77 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
     setShowSuccessAnimation(true);
     if (onImportComplete) {
       onImportComplete();
+    }
+  };
+
+  const handleTestImportService = async () => {
+    setLoading(true);
+    setTestResult(null);
+    setError(null);
+    
+    try {
+      const result = await ImportService.testImportService(eventId);
+      if (result.success) {
+        setTestResult(`✅ ${result.message}\n\nDetails:\n${JSON.stringify(result.details, null, 2)}`);
+      } else {
+        setError(`❌ ${result.message}\n\nDetails:\n${JSON.stringify(result.details, null, 2)}`);
+      }
+    } catch (err) {
+      setError(`Test failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = (format: 'csv' | 'excel') => {
+    try {
+      if (format === 'csv') {
+        // Create CSV content with better sample data
+        const csvContent = `Nama,Email,Telepon,Status,Catatan
+John Doe,john.doe@example.com,081234567890,pending,Sample registration 1
+Jane Smith,jane.smith@example.com,081234567891,confirmed,Sample registration 2
+Bob Johnson,bob.johnson@example.com,081234567892,pending,Sample registration 3
+Alice Brown,alice.brown@example.com,081234567893,cancelled,Sample registration 4
+Charlie Wilson,charlie.wilson@example.com,081234567894,pending,Sample registration 5`;
+
+        // Create blob and download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'registration-template.csv');
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Show success message
+        console.log('✅ CSV template downloaded successfully');
+      } else {
+        // For Excel, we'll create a tab-separated file that can be opened in Excel
+        const excelContent = `Nama\tEmail\tTelepon\tStatus\tCatatan
+John Doe\tjohn.doe@example.com\t081234567890\tpending\tSample registration 1
+Jane Smith\tjane.smith@example.com\t081234567891\tconfirmed\tSample registration 2
+Bob Johnson\tbob.johnson@example.com\t081234567892\tpending\tSample registration 3
+Alice Brown\talice.brown@example.com\t081234567893\tcancelled\tSample registration 4
+Charlie Wilson\tcharlie.wilson@example.com\t081234567894\tpending\tSample registration 5`;
+
+        const blob = new Blob([excelContent], { type: 'text/tab-separated-values;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'registration-template.xls');
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Show success message
+        console.log('✅ Excel template downloaded successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error downloading template:', error);
+      setError('Failed to download template');
     }
   };
 
@@ -446,31 +568,228 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
                   </div>
                 )}
               </div>
-              <h3 className="text-lg font-semibold mb-2">Import Berhasil!</h3>
+              <h3 className="text-lg font-semibold mb-2">Import Selesai!</h3>
               <p className="text-muted-foreground mb-4">
-                Data telah berhasil diimport ke database.
+                Proses import telah selesai.
               </p>
               {importResult && (
-                <div className="bg-green-50 p-4 rounded-lg mb-4">
+                <div className="bg-blue-50 p-4 rounded-lg mb-4 text-left">
+                  <h4 className="font-medium mb-3">Ringkasan Import:</h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="font-medium">Total Records:</span>
-                      <p className="text-green-600">{importResult.totalRecords}</p>
+                      <span className="font-medium">Total Data:</span>
+                      <p className="text-blue-600">{importResult.totalRecords}</p>
                     </div>
                     <div>
-                      <span className="font-medium">Successful:</span>
+                      <span className="font-medium">Berhasil Import:</span>
                       <p className="text-green-600">{importResult.successfulImports}</p>
                     </div>
+                    <div>
+                      <span className="font-medium">Gagal Import:</span>
+                      <p className="text-red-600">{importResult.failedImports}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">Duplikat (Dilewati):</span>
+                      <p className="text-orange-600">{importResult.totalRecords - importResult.successfulImports - importResult.failedImports}</p>
+                    </div>
                   </div>
+                  
+                  {/* Show failed imports details */}
+                  {importResult.failedImports > 0 && (
+                    <div className="mt-4 p-3 bg-red-50 rounded border border-red-200">
+                      <h5 className="font-medium text-red-800 mb-2">Data yang Gagal Import ({importResult.failedImports}):</h5>
+                      <div className="text-xs text-red-700 max-h-32 overflow-y-auto">
+                        {importResult.errors && importResult.errors.length > 0 ? (
+                          <>
+                            {importResult.errors.slice(0, 5).map((error, index) => (
+                              <div key={index} className="mb-1">
+                                • Row {error.row}: {error.message} - {error.value}
+                              </div>
+                            ))}
+                            {importResult.errors.length > 5 && (
+                              <div className="text-orange-600">
+                                ... dan {importResult.errors.length - 5} error lainnya
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-gray-600">
+                            Data gagal di-import karena duplikat atau error lainnya
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Debug info */}
+                      <div className="text-xs text-gray-600 mt-2">
+                        Debug: failedImportData length: {importResult.failedImportData?.length || 0}
+                      </div>
+                      
+                      {/* Export failed imports button */}
+                      <Button 
+                        onClick={() => {
+                          console.log('Download button clicked (inside section)');
+                          console.log('failedImportData:', importResult.failedImportData);
+                          console.log('errors:', importResult.errors);
+                          
+                          // Always create download data from errors as fallback
+                          const downloadData = (importResult.errors || []).map(error => {
+                            // Try to extract name and email from error value
+                            const errorValue = error.value || '';
+                            let name = 'Unknown';
+                            let email = 'Unknown';
+                            
+                            // Parse error value like "Unknown (email@example.com)"
+                            if (errorValue.includes('(') && errorValue.includes(')')) {
+                              const match = errorValue.match(/^(.+?)\s*\(([^)]+)\)$/);
+                              if (match) {
+                                name = match[1].trim();
+                                email = match[2].trim();
+                              }
+                            } else if (errorValue.includes('@')) {
+                              // If it's just an email
+                              email = errorValue;
+                            } else {
+                              name = errorValue;
+                            }
+                            
+                            return {
+                              row_number: error.row,
+                              name: name,
+                              email: email,
+                              phone: '',
+                              error_message: error.message,
+                              error_field: error.field || 'unknown',
+                              original_data: {}
+                            };
+                          });
+                          
+                          console.log('Created download data (inside section):', downloadData);
+                          
+                          // If no errors but there are failed imports, create informative data
+                          if (downloadData.length === 0 && importResult.failedImports > 0) {
+                            const informativeData = [{
+                              row_number: 1,
+                              name: 'Data yang Gagal Import',
+                              email: `${importResult.failedImports} data`,
+                              phone: '',
+                              error_message: `Total ${importResult.failedImports} data gagal di-import karena duplikat atau error lainnya`,
+                              error_field: 'summary',
+                              original_data: {
+                                total_failed: importResult.failedImports,
+                                total_successful: importResult.successfulImports,
+                                total_records: importResult.totalRecords,
+                                note: 'Data detail tidak tersedia, tetapi ada data yang gagal di-import'
+                              }
+                            }];
+                            console.log('Using informative data (inside section):', informativeData);
+                            ImportService.downloadFailedImportsCSV(
+                              informativeData,
+                              `failed-imports-summary-${new Date().toISOString().split('T')[0]}.csv`
+                            );
+                          } else {
+                            ImportService.downloadFailedImportsCSV(
+                              downloadData,
+                              `failed-imports-${new Date().toISOString().split('T')[0]}.csv`
+                            );
+                          }
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 text-red-700 border-red-300 hover:bg-red-100"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Data Gagal (CSV)
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
-              <Button 
-                onClick={() => setOpen(false)}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                Tutup
-              </Button>
-            </div>
+              
+              <div className="flex gap-2 justify-center">
+                <Button 
+                  onClick={() => setOpen(false)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Tutup
+                </Button>
+                {importResult?.failedImports > 0 && (
+                  <Button 
+                    onClick={() => {
+                      console.log('Download button clicked (bottom)');
+                      console.log('failedImportData:', importResult.failedImportData);
+                      console.log('errors:', importResult.errors);
+                      
+                      // Always create download data from errors as fallback
+                      const downloadData = (importResult.errors || []).map(error => {
+                        // Try to extract name and email from error value
+                        const errorValue = error.value || '';
+                        let name = 'Unknown';
+                        let email = 'Unknown';
+                        
+                        // Parse error value like "Unknown (email@example.com)"
+                        if (errorValue.includes('(') && errorValue.includes(')')) {
+                          const match = errorValue.match(/^(.+?)\s*\(([^)]+)\)$/);
+                          if (match) {
+                            name = match[1].trim();
+                            email = match[2].trim();
+                          }
+                        } else if (errorValue.includes('@')) {
+                          // If it's just an email
+                          email = errorValue;
+                        } else {
+                          name = errorValue;
+                        }
+                        
+                        return {
+                          row_number: error.row,
+                          name: name,
+                          email: email,
+                          phone: '',
+                          error_message: error.message,
+                          error_field: error.field || 'unknown',
+                          original_data: {}
+                        };
+                      });
+                      
+                      console.log('Created download data:', downloadData);
+                      
+                      // If no errors but there are failed imports, create informative data
+                      if (downloadData.length === 0 && importResult.failedImports > 0) {
+                        const informativeData = [{
+                          row_number: 1,
+                          name: 'Data yang Gagal Import',
+                          email: `${importResult.failedImports} data`,
+                          phone: '',
+                          error_message: `Total ${importResult.failedImports} data gagal di-import karena duplikat atau error lainnya`,
+                          error_field: 'summary',
+                          original_data: {
+                            total_failed: importResult.failedImports,
+                            total_successful: importResult.successfulImports,
+                            total_records: importResult.totalRecords,
+                            note: 'Data detail tidak tersedia, tetapi ada data yang gagal di-import'
+                          }
+                        }];
+                        console.log('Using informative data:', informativeData);
+                        ImportService.downloadFailedImportsCSV(
+                          informativeData,
+                          `failed-imports-summary-${new Date().toISOString().split('T')[0]}.csv`
+                        );
+                      } else {
+                        ImportService.downloadFailedImportsCSV(
+                          downloadData,
+                          `failed-imports-${new Date().toISOString().split('T')[0]}.csv`
+                        );
+                      }
+                    }}
+                    variant="outline"
+                    className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Data Gagal ({importResult.failedImports})
+                  </Button>
+                )}
+                                  </div>
+              </div>
           );
         
         default:
@@ -506,8 +825,37 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
           <DialogDescription>
             Import data peserta dari file CSV atau Excel
           </DialogDescription>
+          
+          {/* Template Information */}
+          <div className="bg-blue-50 p-4 rounded-lg mt-4">
+            <h4 className="font-medium text-blue-900 mb-2">📋 Template Format</h4>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p><strong>Required Fields:</strong> Nama, Email</p>
+              <p><strong>Optional Fields:</strong> Telepon, Status, Catatan</p>
+              <p><strong>Status Options:</strong> pending, confirmed, cancelled</p>
+              <p><strong>Format:</strong> CSV atau Excel dengan header di baris pertama</p>
+            </div>
+          </div>
           {/* Advanced Features Buttons */}
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-4 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDownloadTemplate('csv')}
+              className="hover:bg-green-50 transition-colors"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV Template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDownloadTemplate('excel')}
+              className="hover:bg-blue-50 transition-colors"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Excel Template
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -534,6 +882,16 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
             >
               <Settings className="h-4 w-4 mr-2" />
               Batch Processor
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestImportService}
+              disabled={loading}
+              className="hover:bg-red-50 transition-colors"
+            >
+              <Bug className="h-4 w-4 mr-2" />
+              Test Import
             </Button>
           </div>
         </DialogHeader>
@@ -589,6 +947,16 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
           <Alert variant="destructive" className="animate-in slide-in-from-top-2">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Test Result Display */}
+        {testResult && (
+          <Alert className="animate-in slide-in-from-top-2">
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription className="whitespace-pre-wrap font-mono text-xs">
+              {testResult}
+            </AlertDescription>
           </Alert>
         )}
         
@@ -666,6 +1034,29 @@ export function ImportWizard({ eventId, onImportComplete }: ImportWizardProps) {
               Import file besar dengan batch processing
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Warning if field mapping is incomplete */}
+          {(!fieldMapping || Object.keys(fieldMapping).length === 0) && (
+            <Alert className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Field Mapping Belum Lengkap</AlertTitle>
+              <AlertDescription>
+                Field mapping belum diselesaikan. Silakan selesaikan field mapping terlebih dahulu untuk hasil yang optimal.
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowBatchProcessor(false);
+                    goToStep('mapping');
+                  }}
+                  className="mt-2"
+                >
+                  Lanjutkan ke Field Mapping
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           {file && (
             <BatchImportProcessor
               file={file}

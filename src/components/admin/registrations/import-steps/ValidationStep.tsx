@@ -277,6 +277,17 @@ export function ValidationStep({
               </div>
             </div>
           </div>
+          
+          {/* Next Steps Info */}
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="font-medium text-blue-900 mb-2">📋 Langkah Selanjutnya:</h4>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p>1. Klik "Mulai Import" untuk memproses data</p>
+              <p>2. Sistem akan menampilkan progress import</p>
+              <p>3. Setelah selesai, akan muncul ringkasan hasil import</p>
+              <p>4. Jika ada data yang gagal, tombol "Download Data Gagal" akan tersedia</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -305,9 +316,19 @@ export function ValidationStep({
             </Alert>
           )}
           
+          {validationErrors.length === 0 && (
+            <Alert className="max-w-md">
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                Data valid! Siap untuk diimport. Setelah import selesai, jika ada data yang gagal, tombol download akan tersedia.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <Button 
             onClick={onComplete}
             disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             {loading ? (
               <>
@@ -316,7 +337,7 @@ export function ValidationStep({
               </>
             ) : (
               <>
-                {importConfig.validateOnly ? 'Validasi Data' : 'Mulai Import'}
+                {importConfig.validateOnly ? 'Validasi Data' : 'Mulai Import →'}
                 <ArrowRight className="h-4 w-4 ml-2" />
               </>
             )}

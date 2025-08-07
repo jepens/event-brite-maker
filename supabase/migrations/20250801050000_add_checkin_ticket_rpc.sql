@@ -17,21 +17,43 @@ DECLARE
   event_record RECORD;
   result JSON;
 BEGIN
-  -- Find ticket by QR code or short code
+  -- Find ticket by QR code or short code (regardless of status)
   SELECT t.*, r.*, e.name as event_name, e.event_date, e.location
   INTO ticket_record
   FROM tickets t
   JOIN registrations r ON t.registration_id = r.id
   JOIN events e ON r.event_id = e.id
   WHERE (t.qr_code = qr_code_param OR t.short_code = qr_code_param)
-    AND t.status = 'unused'
   LIMIT 1;
 
-  -- Check if ticket exists and is unused
+  -- Check if ticket exists
   IF NOT FOUND THEN
     RETURN json_build_object(
       'success', false,
-      'error', 'Ticket not found or already used'
+      'error', 'Ticket tidak ditemukan'
+    );
+  END IF;
+
+  -- Check if ticket is already used
+  IF ticket_record.status = 'used' OR ticket_record.checkin_at IS NOT NULL THEN
+    RETURN json_build_object(
+      'success', false,
+      'error', 'Ticket sudah digunakan',
+      'ticket_info', json_build_object(
+        'used_at', ticket_record.used_at,
+        'checkin_at', ticket_record.checkin_at,
+        'checkin_location', ticket_record.checkin_location,
+        'checkin_notes', ticket_record.checkin_notes
+      ),
+      'participant', json_build_object(
+        'name', ticket_record.participant_name,
+        'email', ticket_record.participant_email
+      ),
+      'event', json_build_object(
+        'name', ticket_record.event_name,
+        'date', ticket_record.event_date,
+        'location', ticket_record.location
+      )
     );
   END IF;
 

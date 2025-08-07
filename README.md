@@ -1,16 +1,67 @@
 # Event Brite Maker
 
-A modern event registration and management application built with React, TypeScript, and Supabase.
+A modern event registration and management system built with React, TypeScript, and Supabase.
 
-## 🚀 Features
+## Features
 
-- **Event Management**: Create, edit, and manage events
-- **Registration System**: Handle participant registrations
-- **QR Code Scanner**: Scan QR codes for check-ins
-- **Admin Dashboard**: Comprehensive admin interface
-- **Real-time Updates**: Live data synchronization
+- **Event Management**: Create and manage events with custom branding
+- **Registration System**: Handle participant registrations with approval workflow
+- **QR Code Tickets**: Generate and manage QR code tickets for events
+- **Email Notifications**: Send ticket emails to participants
+- **WhatsApp Integration**: Send ticket notifications via WhatsApp
+- **Admin Dashboard**: Comprehensive admin interface for managing events and registrations
+- **Mobile Responsive**: Works seamlessly on desktop and mobile devices
 - **PWA Support**: Progressive Web App capabilities
-- **Mobile Responsive**: Works on all devices
+- **Import/Export**: Bulk import and export registration data
+- **QR Scanner**: Scan QR codes for check-in
+- **Reports**: Generate check-in reports and analytics
+
+## Recent Updates
+
+### WhatsApp Resend Feature
+- Added "Resend WhatsApp" button next to "Resend Email" in the registration table
+- Button only appears when WhatsApp is enabled for the event and phone number is provided
+- Uses existing `send-whatsapp-ticket` Supabase function
+- Available in both desktop and mobile views
+- Shows success/error notifications
+
+## Troubleshooting
+
+### WhatsApp Issues
+If you encounter errors when resending WhatsApp tickets:
+
+1. **Check Event Settings**: Ensure WhatsApp is enabled for the event
+2. **Verify Phone Number**: Make sure the registration has a valid phone number
+3. **Environment Variables**: Verify these are set in Supabase:
+   - `WHATSAPP_ACCESS_TOKEN`
+   - `WHATSAPP_PHONE_NUMBER_ID`
+   - `WHATSAPP_TEMPLATE_NAME`
+4. **Phone Number Format**: Supported formats (all will be converted to 628xxxxxxxxxx):
+   - `628xxxxxxxxxx` (13 digits) - Already correct format
+   - `628xxxxxxxxx` (11 digits) - Already correct format
+   - `08xxxxxxxxxxx` (13 digits) - Will be converted to 628xxxxxxxxxx
+   - `08xxxxxxxxxx` (12 digits) - Will be converted to 628xxxxxxxxxx
+   - `08xxxxxxxxx` (11 digits) - Will be converted to 628xxxxxxxxxx
+   - `08xxxxxxxx` (10 digits) - Will be converted to 628xxxxxxxxxx
+   - `8xxxxxxxxx` (11 digits) - Will be converted to 628xxxxxxxxxx
+   - `xxxxxxxxxx` (10 digits) - Will be converted to 628xxxxxxxxxx
+   - Also supports: spaces, dashes, plus signs (e.g., `+6281314942012`, `0813-149-42012`)
+5. **Rate Limiting**: WhatsApp API has rate limits, wait a few minutes between sends
+6. **Template Issues**: Ensure the WhatsApp template is approved and active
+7. **Database Schema**: Phone number is stored as `text` type, which is correct
+
+### Common Error Messages
+- "WhatsApp is not enabled for this event" → Enable WhatsApp in event settings
+- "Phone number not provided" → Add phone number to registration
+- "Invalid phone number format" → Use supported phone number format
+- "Phone number is required" → Phone number is null, undefined, or empty
+- "WhatsApp API error" → Check environment variables and template status
+
+### Testing Phone Numbers
+Run the test script to validate phone number formats:
+```bash
+node test-phone-validation.js
+```
 
 ## 🛠️ Tech Stack
 

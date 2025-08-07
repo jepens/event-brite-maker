@@ -216,9 +216,28 @@ export function RegistrationsManagement() {
 
   const handleResendEmail = async (registration: Registration) => {
     try {
+      // Get the first ticket for this registration
+      const ticket = registration.tickets?.[0];
+      if (!ticket) {
+        toast({
+          title: 'Error',
+          description: 'No ticket found for this registration',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { error } = await supabase.functions.invoke('send-ticket-email', {
         body: {
           registration_id: registration.id,
+          participant_email: registration.participant_email,
+          participant_name: registration.participant_name,
+          event_name: registration.events?.name || 'Unknown Event',
+          event_date: registration.events?.event_date || new Date().toISOString(),
+          event_location: registration.events?.location || 'TBA',
+          qr_code_data: ticket.qr_code,
+          qr_image_url: ticket.qr_image_url,
+          short_code: ticket.short_code,
         },
       });
 
@@ -233,6 +252,89 @@ export function RegistrationsManagement() {
       toast({
         title: 'Error',
         description: 'Failed to resend email',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleResendWhatsApp = async (registration: Registration) => {
+    try {
+      console.log('Starting WhatsApp resend for registration:', registration.id);
+      console.log('Registration data:', {
+        phone_number: registration.phone_number,
+        whatsapp_enabled: registration.events?.whatsapp_enabled,
+        event_name: registration.events?.name
+      });
+
+      // Check if WhatsApp is enabled and phone number exists
+      if (!registration.events?.whatsapp_enabled) {
+        toast({
+          title: 'Error',
+          description: 'WhatsApp is not enabled for this event',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!registration.phone_number) {
+        toast({
+          title: 'Error',
+          description: 'Phone number not provided for this registration',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      console.log('Calling send-whatsapp-ticket function...');
+      const { data, error } = await supabase.functions.invoke('send-whatsapp-ticket', {
+        body: {
+          registration_id: registration.id,
+        },
+      });
+
+      console.log('Function response:', { data, error });
+
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(error.message || 'Failed to send WhatsApp ticket');
+      }
+
+      // Check if the response contains an error
+      if (data && data.error) {
+        console.error('Function returned error:', data.error);
+        throw new Error(data.error);
+      }
+
+      console.log('WhatsApp ticket sent successfully');
+      toast({
+        title: 'Success',
+        description: 'WhatsApp ticket sent successfully',
+      });
+
+      // Refresh registrations to update WhatsApp status
+      await refreshRegistrations();
+    } catch (error) {
+      console.error('Error resending WhatsApp ticket:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to resend WhatsApp ticket';
+      if (error.message) {
+        if (error.message.includes('WhatsApp is not enabled')) {
+          errorMessage = 'WhatsApp is not enabled for this event';
+        } else if (error.message.includes('Phone number not provided')) {
+          errorMessage = 'Phone number not provided for this registration';
+        } else if (error.message.includes('Invalid phone number')) {
+          errorMessage = 'Invalid phone number format';
+        } else if (error.message.includes('already sent')) {
+          errorMessage = 'WhatsApp ticket already sent for this registration';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      toast({
+        title: 'Error',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -378,6 +480,7 @@ export function RegistrationsManagement() {
             onUpdateStatus={updateRegistrationStatus}
             onViewTicket={handleViewTicket}
             onResendEmail={handleResendEmail}
+            onResendWhatsApp={handleResendWhatsApp}
             onDeleteRegistration={handleDeleteRegistration}
             onShowApproveDialog={handleShowApproveDialog}
             onEditParticipant={handleEditParticipant}
@@ -401,6 +504,7 @@ export function RegistrationsManagement() {
             onUpdateStatus={updateRegistrationStatus}
             onViewTicket={handleViewTicket}
             onResendEmail={handleResendEmail}
+            onResendWhatsApp={handleResendWhatsApp}
             onDeleteRegistration={handleDeleteRegistration}
             onDownloadRegistrations={handleDownloadAll}
             onShowApproveDialog={handleShowApproveDialog}

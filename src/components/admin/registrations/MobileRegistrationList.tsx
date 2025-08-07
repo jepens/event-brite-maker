@@ -11,6 +11,7 @@ interface MobileRegistrationListProps {
   onUpdateStatus: (registrationId: string, status: 'approved' | 'rejected', notificationOptions?: { sendEmail: boolean; sendWhatsApp: boolean }) => void;
   onViewTicket: (registration: Registration) => void;
   onResendEmail: (registration: Registration) => void;
+  onResendWhatsApp: (registration: Registration) => void;
   onDeleteRegistration: (registration: Registration) => void;
   onDownloadRegistrations?: () => void;
   onShowApproveDialog: (registration: Registration) => void;
@@ -21,6 +22,7 @@ export function MobileRegistrationList({
   onUpdateStatus,
   onViewTicket,
   onResendEmail,
+  onResendWhatsApp,
   onDeleteRegistration,
   onDownloadRegistrations,
   onShowApproveDialog,
@@ -113,6 +115,7 @@ export function MobileRegistrationList({
             onReject={() => handleReject(registration)}
             onViewTicket={() => onViewTicket(registration)}
             onResendEmail={() => onResendEmail(registration)}
+            onResendWhatsApp={() => onResendWhatsApp(registration)}
             onDelete={() => onDeleteRegistration(registration)}
           />
         ))}

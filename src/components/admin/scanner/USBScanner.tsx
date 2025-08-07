@@ -222,6 +222,12 @@ export function USBScanner({ onScanResult, isConnected, onConnectionChange }: US
     participantEmail?: string;
     eventName?: string;
     checkinTime?: string;
+    ticketInfo?: {
+      used_at?: string;
+      checkin_at?: string;
+      checkin_location?: string;
+      checkin_notes?: string;
+    };
   }> => {
     try {
       // Check if user is authenticated
@@ -229,7 +235,7 @@ export function USBScanner({ onScanResult, isConnected, onConnectionChange }: US
       if (authError || !user) {
         return {
           success: false,
-          message: 'Authentication required. Please sign in again.',
+          message: 'Autentikasi diperlukan. Silakan masuk kembali.',
         };
       }
 
@@ -246,38 +252,48 @@ export function USBScanner({ onScanResult, isConnected, onConnectionChange }: US
         console.error('RPC error:', error);
         return {
           success: false,
-          message: 'Database error. Please try again.',
+          message: 'Error database. Silakan coba lagi.',
         };
       }
 
-      const result = data as {
-        success: boolean;
-        message: string;
-        error?: string;
-        ticket?: {
-          id: string;
-          qr_code: string;
-          short_code: string;
-          status: string;
-          checkin_at: string;
-        };
-        participant?: {
-          name: string;
-          email: string;
-        };
-        event?: {
-          name: string;
-          date: string;
-          location: string;
-        };
-      };
+             const result = data as {
+         success: boolean;
+         message: string;
+         error?: string;
+         ticket?: {
+           id: string;
+           qr_code: string;
+           short_code: string;
+           status: string;
+           checkin_at: string;
+         };
+         ticket_info?: {
+           used_at?: string;
+           checkin_at?: string;
+           checkin_location?: string;
+           checkin_notes?: string;
+         };
+         participant?: {
+           name: string;
+           email: string;
+         };
+         event?: {
+           name: string;
+           date: string;
+           location: string;
+         };
+       };
 
-      if (!result.success) {
-        return {
-          success: false,
-          message: result.error || 'Check-in failed',
-        };
-      }
+             if (!result.success) {
+         return {
+           success: false,
+           message: result.error || 'Check-in gagal',
+           participantName: result.participant?.name,
+           participantEmail: result.participant?.email,
+           eventName: result.event?.name,
+           ticketInfo: result.ticket_info,
+         };
+       }
 
       return {
         success: true,

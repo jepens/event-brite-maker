@@ -78,6 +78,8 @@ export interface ImportConfig {
   skipDuplicates: boolean;
   validateOnly: boolean;
   batchSize: number;
+  fieldMapping?: Record<string, string>;
+  validationRules?: Record<string, ValidationRule>;
 }
 
 export interface FieldMapping {
@@ -116,6 +118,15 @@ export interface ImportResult {
   failedImports: number;
   errors: ImportError[];
   importLogId?: string;
+  failedImportData?: Array<{
+    row_number: number;
+    name: string;
+    email: string;
+    phone: string;
+    error_message: string;
+    error_field: string;
+    original_data: Record<string, any>;
+  }>;
 }
 
 export interface ImportTemplateForm {

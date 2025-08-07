@@ -12,6 +12,7 @@ import { offlineManager, OfflineCheckinData } from '@/lib/offline-manager';
 import { usePWA } from '@/hooks/usePWA';
 import { USBScanner } from './USBScanner';
 import { formatDateTimeForDisplay } from '@/lib/date-utils';
+import { ScanResult } from './ScanResult';
 
 interface ScanResult {
   success: boolean;
@@ -21,6 +22,12 @@ interface ScanResult {
     email: string;
     event_name: string;
     ticket_id: string;
+  };
+  ticket_info?: {
+    used_at?: string;
+    checkin_at?: string;
+    checkin_location?: string;
+    checkin_notes?: string;
   };
   offline?: boolean;
 }
@@ -91,123 +98,104 @@ export function OfflineQRScanner() {
   };
 
   const verifyTicketOnline = async (qrCode: string) => {
-    // First, find the ticket by either qr_code or short_code
-    const { data: ticket, error: ticketError } = await supabase
-      .from('tickets')
-      .select(`
-        id,
-        qr_code,
-        short_code,
-        status,
-        checkin_at,
-        registrations (
-          id,
-          participant_name,
-          participant_email,
-          status,
-          events (
-            id,
-            name
-          )
-        )
-      `)
-      .or(`qr_code.eq.${qrCode},short_code.eq.${qrCode}`)
-      .single();
+    try {
+      // Use optimized RPC function to combine ticket lookup and status update
+      const { data, error } = await supabase
+        .rpc('checkin_ticket', {
+          qr_code_param: qrCode,
+          checkin_location_param: 'QR Scanner',
+          checkin_notes_param: 'Checked in via QR scanner'
+        });
 
-    if (ticketError || !ticket) {
-      setScanResult({
-        success: false,
-        message: 'Invalid QR code or ticket not found',
-      });
-      return;
-    }
+      if (error) {
+        console.error('RPC error:', error);
+        setScanResult({
+          success: false,
+          message: 'Error memproses check-in. Silakan coba lagi.',
+        });
+        return;
+      }
 
-    const registration = ticket.registrations;
-    if (!registration) {
-      setScanResult({
-        success: false,
-        message: 'No registration found for this ticket',
-      });
-      return;
-    }
+      const result = data as {
+        success: boolean;
+        message: string;
+        error?: string;
+        ticket?: {
+          id: string;
+          qr_code: string;
+          short_code: string;
+          status: string;
+          checkin_at: string;
+        };
+        ticket_info?: {
+          used_at?: string;
+          checkin_at?: string;
+          checkin_location?: string;
+          checkin_notes?: string;
+        };
+        participant?: {
+          name: string;
+          email: string;
+        };
+        event?: {
+          name: string;
+          date: string;
+          location: string;
+        };
+      };
 
-    if (registration.status !== 'approved') {
+      if (!result.success) {
+        setScanResult({
+          success: false,
+          message: result.error || 'Check-in gagal',
+          participant: result.participant ? {
+            name: result.participant.name,
+            email: result.participant.email,
+            event_name: result.event?.name || 'Unknown Event',
+            ticket_id: result.ticket?.id || '',
+          } : undefined,
+          ticket_info: result.ticket_info,
+        });
+        return;
+      }
+
+      // Cache ticket data for offline use
+      if (result.ticket && result.participant) {
+        await offlineManager.cacheTicketData({
+          id: result.ticket.id,
+          qrCode: result.ticket.qr_code,
+          shortCode: result.ticket.short_code,
+          participantName: result.participant.name,
+          participantEmail: result.participant.email,
+          eventId: result.event?.name || '',
+          eventName: result.event?.name || 'Unknown Event',
+          status: 'approved',
+          cachedAt: Date.now(),
+        });
+      }
+
       setScanResult({
-        success: false,
-        message: `Registration is ${registration.status}`,
+        success: true,
+        message: 'Check-in berhasil!',
         participant: {
-          name: registration.participant_name,
-          email: registration.participant_email,
-          event_name: registration.events?.name || 'Unknown Event',
-          ticket_id: ticket.id,
+          name: result.participant?.name || 'Unknown',
+          email: result.participant?.email || 'Unknown',
+          event_name: result.event?.name || 'Unknown Event',
+          ticket_id: result.ticket?.id || '',
         },
       });
-      return;
-    }
 
-    // Check if already checked in by looking at ticket status
-    if (ticket.status === 'used' || ticket.checkin_at) {
+      toast({
+        title: 'Success',
+        description: 'Check-in completed successfully',
+      });
+    } catch (error) {
+      console.error('Error in verifyTicketOnline:', error);
       setScanResult({
         success: false,
-        message: `Ticket already checked in at: ${ticket.checkin_at ? formatDateTimeForDisplay(ticket.checkin_at) : 'Unknown time'}`,
-        participant: {
-          name: registration.participant_name,
-          email: registration.participant_email,
-          event_name: registration.events?.name || 'Unknown Event',
-          ticket_id: ticket.id,
-        },
+        message: 'Error memverifikasi ticket. Silakan coba lagi.',
       });
-      return;
     }
-
-    // Perform check-in by updating the ticket
-    const { error: checkinError } = await supabase
-      .from('tickets')
-      .update({
-        status: 'used',
-        checkin_at: new Date().toISOString(),
-        checkin_by: (await supabase.auth.getUser()).data.user?.id,
-        checkin_location: 'QR Scanner',
-        checkin_notes: 'Checked in via QR scanner'
-      })
-      .eq('id', ticket.id);
-
-    if (checkinError) {
-      setScanResult({
-        success: false,
-        message: 'Failed to check in ticket',
-      });
-      return;
-    }
-
-    // Cache ticket data for offline use
-    await offlineManager.cacheTicketData({
-      id: ticket.id,
-      qrCode: ticket.qr_code,
-      shortCode: ticket.short_code,
-      participantName: registration.participant_name,
-      participantEmail: registration.participant_email,
-      eventId: registration.events?.id || '',
-      eventName: registration.events?.name || 'Unknown Event',
-      status: registration.status,
-      cachedAt: Date.now(),
-    });
-
-    setScanResult({
-      success: true,
-      message: 'Check-in successful!',
-      participant: {
-        name: registration.participant_name,
-        email: registration.participant_email,
-        event_name: registration.events?.name || 'Unknown Event',
-        ticket_id: ticket.id,
-      },
-    });
-
-    toast({
-      title: 'Success',
-      description: 'Check-in completed successfully',
-    });
   };
 
   const verifyTicketOffline = async (qrCode: string) => {
@@ -400,48 +388,7 @@ export function OfflineQRScanner() {
       </Tabs>
 
       {/* Scan Result */}
-      {scanResult && (
-        <Card className={`${
-          scanResult.success 
-            ? 'border-green-200 bg-green-50' 
-            : 'border-red-200 bg-red-50'
-        } ${scanResult.offline ? 'border-yellow-200 bg-yellow-50' : ''}`}>
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              {scanResult.success ? (
-                <CheckCircle className="h-6 w-6 text-green-600 mt-1" />
-              ) : (
-                <XCircle className="h-6 w-6 text-red-600 mt-1" />
-              )}
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant={scanResult.success ? 'default' : 'destructive'}>
-                    {scanResult.offline ? 'Offline ' : ''}
-                    {scanResult.success ? 'Valid Ticket' : 'Invalid Ticket'}
-                  </Badge>
-                  {scanResult.offline && (
-                    <Badge variant="secondary">Offline Mode</Badge>
-                  )}
-                </div>
-                <p className={`font-medium ${
-                  scanResult.success 
-                    ? scanResult.offline ? 'text-yellow-800' : 'text-green-800'
-                    : 'text-red-800'
-                }`}>
-                  {scanResult.message}
-                </p>
-                {scanResult.participant && (
-                  <div className="mt-3 space-y-1 text-sm">
-                    <p><strong>Participant:</strong> {scanResult.participant.name}</p>
-                    <p><strong>Email:</strong> {scanResult.participant.email}</p>
-                    <p><strong>Event:</strong> {scanResult.participant.event_name}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <ScanResult result={scanResult} />
     </div>
   );
 } 

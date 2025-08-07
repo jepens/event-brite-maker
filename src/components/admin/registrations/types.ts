@@ -24,6 +24,8 @@ export interface Registration {
   events: {
     id: string;
     name: string;
+    event_date?: string;
+    location?: string;
     whatsapp_enabled?: boolean;
   } | null;
   tickets: Ticket[];

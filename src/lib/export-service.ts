@@ -209,14 +209,6 @@ export class ExportService {
             event_date,
             location,
             custom_fields
-          ),
-          tickets (
-            id,
-            qr_code,
-            short_code,
-            checkin_at,
-            checkin_location,
-            checkin_notes
           )
         `)
         .order('registered_at', { ascending: false });
@@ -257,6 +249,27 @@ export class ExportService {
 
       console.log('📊 Raw data from database:', data?.length || 0, 'records');
 
+      // Fetch tickets separately to avoid relationship ambiguity
+      const registrationIds = (data || []).map(reg => reg.id);
+      let ticketsData: Record<string, any> = {};
+      
+      if (registrationIds.length > 0) {
+        const { data: tickets, error: ticketsError } = await supabase
+          .from('tickets')
+          .select('id, registration_id, qr_code, short_code, checkin_at, checkin_location, checkin_notes')
+          .in('registration_id', registrationIds);
+        
+        if (ticketsError) {
+          console.warn('⚠️ Warning: Could not fetch tickets data:', ticketsError);
+        } else {
+          // Create a map of registration_id to ticket data
+          ticketsData = (tickets || []).reduce((acc, ticket) => {
+            acc[ticket.registration_id] = ticket;
+            return acc;
+          }, {} as Record<string, any>);
+        }
+      }
+
       let mappedData = (data || []).map(registration => {
         // Extract common custom fields
         const customData = registration.custom_data || {};
@@ -269,6 +282,9 @@ export class ExportService {
         const dietaryRestrictions = customData.dietary_restrictions || customData['Dietary Restrictions'] || customData['Pembatasan Diet'] || '';
         const specialRequests = customData.special_requests || customData['Special Requests'] || customData['Permintaan Khusus'] || '';
 
+        // Get ticket data for this registration
+        const ticket = ticketsData[registration.id];
+
         return {
           id: registration.id,
           participant_name: registration.participant_name,
@@ -279,11 +295,11 @@ export class ExportService {
           event_name: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.name || 'Unknown Event',
           event_date: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.event_date || '',
           event_location: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.location || '',
-          ticket_code: registration.tickets?.[0]?.qr_code || '',
-          ticket_short_code: registration.tickets?.[0]?.short_code || '',
-          checkin_at: registration.tickets?.[0]?.checkin_at || '',
-          checkin_location: registration.tickets?.[0]?.checkin_location || '',
-          checkin_notes: registration.tickets?.[0]?.checkin_notes || '',
+          ticket_code: ticket?.qr_code || '',
+          ticket_short_code: ticket?.short_code || '',
+          checkin_at: ticket?.checkin_at || '',
+          checkin_location: ticket?.checkin_location || '',
+          checkin_notes: ticket?.checkin_notes || '',
           // Common custom fields
           member_number: memberNumber,
           company: company,

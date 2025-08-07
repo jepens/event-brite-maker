@@ -91,14 +91,6 @@ export async function fetchRegistrationData(options: DownloadOptions): Promise<R
           event_date,
           location,
           custom_fields
-        ),
-        tickets (
-          id,
-          qr_code,
-          short_code,
-          checkin_at,
-          checkin_location,
-          checkin_notes
         )
       `)
       .order('registered_at', { ascending: false });
@@ -137,24 +129,50 @@ export async function fetchRegistrationData(options: DownloadOptions): Promise<R
       console.log('📋 Sample raw data:', data[0]);
     }
 
-    const mappedData = (data || []).map(registration => ({
-      id: registration.id,
-      participant_name: registration.participant_name,
-      participant_email: registration.participant_email,
-      phone_number: registration.phone_number || '',
-      status: registration.status,
-      registered_at: registration.registered_at,
-      event_name: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.name || 'Unknown Event',
-      event_date: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.event_date || '',
-      event_location: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.location || '',
-      ticket_code: registration.tickets?.[0]?.qr_code || '',
-      ticket_short_code: registration.tickets?.[0]?.short_code || '',
-      checkin_at: registration.tickets?.[0]?.checkin_at || '',
-      checkin_location: registration.tickets?.[0]?.checkin_location || '',
-      checkin_notes: registration.tickets?.[0]?.checkin_notes || '',
-      custom_data: registration.custom_data,
-      event_custom_fields: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.custom_fields || []
-    }));
+    // Fetch tickets separately to avoid relationship ambiguity
+    const registrationIds = (data || []).map(reg => reg.id);
+    let ticketsData: Record<string, any> = {};
+    
+    if (registrationIds.length > 0) {
+      const { data: tickets, error: ticketsError } = await supabase
+        .from('tickets')
+        .select('id, registration_id, qr_code, short_code, checkin_at, checkin_location, checkin_notes')
+        .in('registration_id', registrationIds);
+      
+      if (ticketsError) {
+        console.warn('⚠️ Warning: Could not fetch tickets data:', ticketsError);
+      } else {
+        // Create a map of registration_id to ticket data
+        ticketsData = (tickets || []).reduce((acc, ticket) => {
+          acc[ticket.registration_id] = ticket;
+          return acc;
+        }, {} as Record<string, any>);
+      }
+    }
+
+    const mappedData = (data || []).map(registration => {
+      // Get ticket data for this registration
+      const ticket = ticketsData[registration.id];
+      
+      return {
+        id: registration.id,
+        participant_name: registration.participant_name,
+        participant_email: registration.participant_email,
+        phone_number: registration.phone_number || '',
+        status: registration.status,
+        registered_at: registration.registered_at,
+        event_name: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.name || 'Unknown Event',
+        event_date: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.event_date || '',
+        event_location: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.location || '',
+        ticket_code: ticket?.qr_code || '',
+        ticket_short_code: ticket?.short_code || '',
+        checkin_at: ticket?.checkin_at || '',
+        checkin_location: ticket?.checkin_location || '',
+        checkin_notes: ticket?.checkin_notes || '',
+        custom_data: registration.custom_data,
+        event_custom_fields: (registration.events as { name?: string; event_date?: string; location?: string; custom_fields?: CustomField[] })?.custom_fields || []
+      };
+    });
 
     console.log('✅ Mapped data count:', mappedData.length);
     if (mappedData.length > 0) {

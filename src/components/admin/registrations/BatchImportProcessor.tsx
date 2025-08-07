@@ -24,6 +24,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { ImportService } from '@/lib/import-service';
 import type { ImportProgress, ImportResult, ImportConfig } from './import-types';
+import type { ParsedData } from '@/lib/import-service';
 
 interface BatchImportProcessorProps {
   file: File;
@@ -146,38 +147,61 @@ export function BatchImportProcessor({
         status: 'processing'
       }));
 
-      // Simulate batch processing with progress updates
-      const batchProgress = await ImportService.importData(
-        file,
-        config,
-        (progress: ImportProgress) => {
-          // Update progress for this batch
-          const batchProgress = Math.round((progress.current / progress.total) * batchData.length);
-          const totalProcessed = startIndex + batchProgress;
-          
-          setBatchStatus(prev => ({
-            ...prev,
-            processedRecords: totalProcessed,
-            successfulRecords: prev.successfulRecords + Math.round(batchProgress * 0.9), // Simulate 90% success rate
-            failedRecords: prev.failedRecords + Math.round(batchProgress * 0.1), // Simulate 10% failure rate
-            errors: [...prev.errors, ...progress.errors]
-          }));
+      // Convert data to ParsedData format for batch processing
+      const parsedData: ParsedData = {
+        headers: Object.keys(batchData[0] || {}),
+        rows: batchData.map((row, index) => ({
+          rowNumber: startIndex + index + 1,
+          data: row as Record<string, string>,
+          errors: []
+        })),
+        totalRows: batchData.length
+      };
 
-          updateProcessingSpeed();
+      // Convert config to the structure expected by ImportService.importDataEnhanced
+      const importServiceConfig = {
+        eventId: config.eventId,
+        fileType: file.name.toLowerCase().endsWith('.csv') ? 'csv' as const : 'excel' as const,
+        mapping: config.fieldMapping || {},
+        validationRules: config.validationRules || {},
+        options: {
+          skipDuplicates: config.skipDuplicates,
+          defaultStatus: config.defaultStatus as 'pending' | 'approved',
+          sendEmails: false, // Default to false for batch processing
+          validateOnly: config.validateOnly
         }
-      );
+      };
+
+      console.log('🔄 Processing batch with config:', {
+        eventId: importServiceConfig.eventId,
+        mapping: importServiceConfig.mapping,
+        skipDuplicates: importServiceConfig.options.skipDuplicates,
+        batchSize: parsedData.totalRows
+      });
+
+      // Process the batch directly using importDataEnhanced
+      const batchResult = await ImportService.importDataEnhanced(parsedData, importServiceConfig);
+      
+      // Update batch status with results
+      setBatchStatus(prev => ({
+        ...prev,
+        processedRecords: prev.processedRecords + batchData.length,
+        successfulRecords: prev.successfulRecords + batchResult.successfulImports,
+        failedRecords: prev.failedRecords + batchResult.failedImports,
+        errors: [...prev.errors, ...batchResult.errors]
+      }));
 
       // Add delay between batches
       if (delayBetweenBatches > 0 && batchNumber < Math.ceil(data.length / batchSize)) {
         await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
       }
 
-      return batchProgress;
+      return batchResult;
     } catch (error) {
       console.error(`Error processing batch ${batchNumber}:`, error);
       throw error;
     }
-  }, [file, config, batchSize, delayBetweenBatches, updateProcessingSpeed]);
+  }, [file, config, batchSize, delayBetweenBatches]);
 
   // Start batch processing
   const startProcessing = useCallback(async () => {
@@ -245,7 +269,7 @@ export function BatchImportProcessor({
       
       // Get final status from state
       const result: ImportResult = {
-        status: 'completed',
+        success: batchStatus.failedRecords === 0,
         totalRecords: data.length,
         successfulImports: batchStatus.successfulRecords,
         failedImports: batchStatus.failedRecords,

@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import QrScanner from 'qr-scanner';
 import { formatDateTimeForDisplay } from '@/lib/date-utils';
+import { ScanResult } from './scanner/ScanResult';
 
 interface ScanResult {
   success: boolean;
@@ -17,6 +18,12 @@ interface ScanResult {
     name: string;
     email: string;
     event_name: string;
+  };
+  ticket_info?: {
+    used_at?: string;
+    checkin_at?: string;
+    checkin_location?: string;
+    checkin_notes?: string;
   };
 }
 
@@ -114,20 +121,27 @@ export function QRScanner() {
       if (ticketError || !ticket) {
         setScanResult({
           success: false,
-          message: 'Invalid QR code. Ticket not found.',
+          message: 'Kode QR tidak valid. Ticket tidak ditemukan.',
         });
         return;
       }
 
       // Check if ticket is already used or has been checked in
       if (ticket.status === 'used' || ticket.checkin_at) {
+        const checkinTime = ticket.checkin_at ? formatDateTimeForDisplay(ticket.checkin_at) : 'Unknown time';
         setScanResult({
           success: false,
-          message: `This ticket has already been used. Checked in at: ${ticket.checkin_at ? formatDateTimeForDisplay(ticket.checkin_at) : 'Unknown time'}`,
+          message: `Ticket sudah digunakan. Check-in dilakukan pada: ${checkinTime}`,
           participant: {
             name: ticket.registrations.participant_name,
             email: ticket.registrations.participant_email,
             event_name: ticket.registrations.events.name,
+          },
+          ticket_info: {
+            used_at: ticket.used_at,
+            checkin_at: ticket.checkin_at,
+            checkin_location: ticket.checkin_location,
+            checkin_notes: ticket.checkin_notes,
           },
         });
         return;
@@ -152,7 +166,7 @@ export function QRScanner() {
 
       setScanResult({
         success: true,
-        message: 'Ticket verified successfully! Welcome to the event.',
+        message: 'Ticket berhasil diverifikasi! Selamat datang di event.',
         participant: {
           name: ticket.registrations.participant_name,
           email: ticket.registrations.participant_email,
@@ -168,7 +182,7 @@ export function QRScanner() {
       console.error('Error verifying ticket:', error);
       setScanResult({
         success: false,
-        message: 'Error verifying ticket. Please try again.',
+        message: 'Error memverifikasi ticket. Silakan coba lagi.',
       });
               toast({
           title: 'Error',
@@ -259,36 +273,7 @@ export function QRScanner() {
       </div>
 
       {/* Scan Result */}
-      {scanResult && (
-        <Card className={scanResult.success ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}>
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              {scanResult.success ? (
-                <CheckCircle className="h-6 w-6 text-green-600 mt-1" />
-              ) : (
-                <XCircle className="h-6 w-6 text-red-600 mt-1" />
-              )}
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant={scanResult.success ? 'default' : 'destructive'}>
-                    {scanResult.success ? 'Valid Ticket' : 'Invalid Ticket'}
-                  </Badge>
-                </div>
-                <p className={`font-medium ${scanResult.success ? 'text-green-800' : 'text-red-800'}`}>
-                  {scanResult.message}
-                </p>
-                {scanResult.participant && (
-                  <div className="mt-3 space-y-1 text-sm">
-                    <p><strong>Participant:</strong> {scanResult.participant.name}</p>
-                    <p><strong>Email:</strong> {scanResult.participant.email}</p>
-                    <p><strong>Event:</strong> {scanResult.participant.event_name}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <ScanResult result={scanResult} />
     </div>
   );
 }
