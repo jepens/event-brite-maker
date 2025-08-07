@@ -15,7 +15,8 @@ export function useRegistrations() {
       setLoading(true);
       console.log('🔄 Fetching registrations with fresh data...');
       
-      const { data, error } = await supabase
+      // First, fetch registrations with events
+      const { data: registrationsData, error: registrationsError } = await supabase
         .from('registrations')
         .select(`
           *,
@@ -26,26 +27,12 @@ export function useRegistrations() {
             location,
             description,
             whatsapp_enabled
-          ),
-          tickets (
-            id,
-            qr_code,
-            short_code,
-            status,
-            checkin_at,
-            checkin_location,
-            whatsapp_sent,
-            whatsapp_sent_at,
-            email_sent,
-            email_sent_at,
-            issued_at,
-            qr_image_url
           )
         `)
         .order('registered_at', { ascending: false });
 
-      if (error) {
-        console.error('❌ Error fetching registrations:', error);
+      if (registrationsError) {
+        console.error('❌ Error fetching registrations:', registrationsError);
         toast({
           title: 'Error',
           description: 'Failed to fetch registrations',
@@ -54,10 +41,43 @@ export function useRegistrations() {
         return;
       }
 
-      console.log('✅ Registrations fetched successfully:', data?.length || 0, 'registrations');
+      // Then, fetch tickets separately and join manually
+      const { data: ticketsData, error: ticketsError } = await supabase
+        .from('tickets')
+        .select('*')
+        .order('issued_at', { ascending: false });
+
+      if (ticketsError) {
+        console.error('❌ Error fetching tickets:', ticketsError);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch tickets',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Create a map of tickets by registration_id for quick lookup
+      const ticketsMap = new Map();
+      ticketsData?.forEach(ticket => {
+        if (ticket.registration_id) {
+          if (!ticketsMap.has(ticket.registration_id)) {
+            ticketsMap.set(ticket.registration_id, []);
+          }
+          ticketsMap.get(ticket.registration_id).push(ticket);
+        }
+      });
+
+      // Combine registrations with their tickets
+      const combinedData = registrationsData?.map(registration => ({
+        ...registration,
+        tickets: ticketsMap.get(registration.id) || []
+      })) || [];
+
+      console.log('✅ Registrations fetched successfully:', combinedData.length, 'registrations');
       
       // Log ticket status for debugging
-      data?.forEach(reg => {
+      combinedData.forEach(reg => {
         if (reg.tickets && reg.tickets.length > 0) {
           const ticket = reg.tickets[0];
           console.log(`🎫 Registration ${reg.id} - Ticket status:`, {
@@ -71,7 +91,7 @@ export function useRegistrations() {
         }
       });
 
-      setRegistrations(data || []);
+      setRegistrations(combinedData);
     } catch (error) {
       console.error('❌ Error fetching registrations:', error);
       toast({
@@ -121,8 +141,8 @@ export function useRegistrations() {
       // Clear current data
       setRegistrations([]);
       
-      // Fetch with explicit cache busting
-      const { data, error } = await supabase
+      // Fetch registrations with events
+      const { data: registrationsData, error: registrationsError } = await supabase
         .from('registrations')
         .select(`
           *,
@@ -133,33 +153,47 @@ export function useRegistrations() {
             location,
             description,
             whatsapp_enabled
-          ),
-          tickets (
-            id,
-            qr_code,
-            short_code,
-            status,
-            checkin_at,
-            checkin_location,
-            whatsapp_sent,
-            whatsapp_sent_at,
-            email_sent,
-            email_sent_at,
-            issued_at,
-            qr_image_url
           )
         `)
         .order('registered_at', { ascending: false });
 
-      if (error) {
-        console.error('❌ Error force refreshing registrations:', error);
-        throw error;
+      if (registrationsError) {
+        console.error('❌ Error force refreshing registrations:', registrationsError);
+        throw registrationsError;
       }
 
-      console.log('✅ Force refresh completed:', data?.length || 0, 'registrations');
+      // Fetch tickets separately
+      const { data: ticketsData, error: ticketsError } = await supabase
+        .from('tickets')
+        .select('*')
+        .order('issued_at', { ascending: false });
+
+      if (ticketsError) {
+        console.error('❌ Error force refreshing tickets:', ticketsError);
+        throw ticketsError;
+      }
+
+      // Create a map of tickets by registration_id for quick lookup
+      const ticketsMap = new Map();
+      ticketsData?.forEach(ticket => {
+        if (ticket.registration_id) {
+          if (!ticketsMap.has(ticket.registration_id)) {
+            ticketsMap.set(ticket.registration_id, []);
+          }
+          ticketsMap.get(ticket.registration_id).push(ticket);
+        }
+      });
+
+      // Combine registrations with their tickets
+      const combinedData = registrationsData?.map(registration => ({
+        ...registration,
+        tickets: ticketsMap.get(registration.id) || []
+      })) || [];
+
+      console.log('✅ Force refresh completed:', combinedData.length, 'registrations');
       
       // Log detailed ticket information
-      data?.forEach(reg => {
+      combinedData.forEach(reg => {
         if (reg.tickets && reg.tickets.length > 0) {
           const ticket = reg.tickets[0];
           console.log(`🎫 FORCE REFRESH - Registration ${reg.id}:`, {
@@ -173,7 +207,7 @@ export function useRegistrations() {
         }
       });
 
-      setRegistrations(data || []);
+      setRegistrations(combinedData);
       
       toast({
         title: 'Success',

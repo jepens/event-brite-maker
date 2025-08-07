@@ -7,7 +7,7 @@ const corsHeaders = {
 const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
 // Rate limiting configuration - More lenient for batch operations
 const RATE_LIMITS = {
-  messages_per_second: 2, // Reduced from 5 to 2 for batch operations
+  messages_per_second: 5, // Reduced from 5 to 2 for batch operations
   messages_per_minute: 100, // Reduced from 250 to 100 for batch operations
   messages_per_hour: 500, // Reduced from 1000 to 500 for batch operations
   retry_after_seconds: 30, // Reduced from 60 to 30 seconds
@@ -145,7 +145,7 @@ const handler = async (req)=>{
     }
     
     console.log("Starting WhatsApp ticket send for registration:", registration_id);
-    console.log("Using template name:", template_name || 'ticket_confirmation (default)');
+    console.log("Using template name:", template_name || 'ticket_beautiful (default)');
     console.log("Using language code:", language_code || 'id (default)');
     console.log("Include header image:", include_header);
     console.log("Custom date format:", custom_date_format);
@@ -157,8 +157,8 @@ const handler = async (req)=>{
     console.log("WHATSAPP_ACCESS_TOKEN:", Deno.env.get('WHATSAPP_ACCESS_TOKEN') ? 'SET' : 'NOT SET');
     console.log("WHATSAPP_PHONE_NUMBER_ID:", Deno.env.get('WHATSAPP_PHONE_NUMBER_ID') ? 'SET' : 'NOT SET');
     console.log("WHATSAPP_TEMPLATE_NAME:", Deno.env.get('WHATSAPP_TEMPLATE_NAME') ? 'SET' : 'NOT SET');
-    // Fetch registration details with event and ticket info
-    const { data: registration, error: regError } = await supabase.from('registrations').select(`
+    // Fetch registration details with event info
+    const { data: registrationData, error: regError } = await supabase.from('registrations').select(`
         *,
         events (
           id,
@@ -167,22 +167,35 @@ const handler = async (req)=>{
           location,
           whatsapp_enabled,
           dresscode
-        ),
-        tickets (
-          id,
-          qr_code,
-          short_code,
-          qr_image_url,
-          whatsapp_sent
         )
       `).eq('id', registration_id).single();
+
     if (regError) {
       console.error('Error fetching registration:', regError);
       throw new Error(`Failed to fetch registration: ${regError.message}`);
     }
-    if (!registration) {
+
+    if (!registrationData) {
       throw new Error('Registration not found');
     }
+
+    // Fetch tickets separately to avoid relationship issues
+    const { data: ticketsData, error: ticketsError } = await supabase
+      .from('tickets')
+      .select('*')
+      .eq('registration_id', registration_id)
+      .limit(1)
+      .single();
+
+    if (ticketsError) {
+      console.warn('Warning: Error fetching tickets:', ticketsError.message);
+    }
+
+    // Combine registration with ticket data
+    const registration = {
+      ...registrationData,
+      tickets: ticketsData || null
+    };
     if (!registration.events) {
       throw new Error('Event not found');
     }
@@ -233,7 +246,7 @@ const handler = async (req)=>{
     // Get dresscode
     const dresscode = getDresscode(registration.events);
     // Use provided template name or fallback to environment variable or default
-    const finalTemplateName = template_name || Deno.env.get('WHATSAPP_TEMPLATE_NAME') || 'ticket_confirmation';
+    const finalTemplateName = template_name || Deno.env.get('WHATSAPP_TEMPLATE_NAME') || 'ticket_beautiful';
     const finalLanguageCode = language_code || 'id';
     
     console.log("Template name resolution:", {
