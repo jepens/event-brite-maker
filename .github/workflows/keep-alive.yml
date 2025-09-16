@@ -1,0 +1,35 @@
+name: Keep Supabase Project Alive
+
+on:
+  schedule:
+    # Runs at 00:00 (midnight) UTC every day.
+    # Anda bisa menyesuaikan waktu ini. Misalnya '0 9 * * *' untuk 9 pagi UTC.
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Memungkinkan Anda menjalankan workflow secara manual dari GitHub Actions tab
+
+jobs:
+  ping_supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository (Optional, but good practice)
+        uses: actions/checkout@v4
+
+      - name: Send Ping Request to Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          # Construct the API endpoint for a simple query.
+          # GANTI 'public.ping_log' dengan nama tabel Anda (misal: public.kategori_masjid).
+          # Ini akan melakukan SELECT 1, yang merupakan operasi baca ringan.
+          API_ENDPOINT="${SUPABASE_URL}/rest/v1/ping_log?select=id&limit=1"
+
+          echo "Pinging Supabase at: $API_ENDPOINT"
+
+          # Use curl to send a GET request
+          curl -s -X GET "${API_ENDPOINT}" \
+          -H "apikey: ${SUPABASE_ANON_KEY}" \
+          -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+          --fail-with-body # Fail the action if HTTP status code is 4xx or 5xx
+
+          echo "Ping successful!"
