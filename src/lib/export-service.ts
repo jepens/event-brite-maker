@@ -251,7 +251,7 @@ export class ExportService {
 
       // Fetch tickets separately to avoid relationship ambiguity
       const registrationIds = (data || []).map(reg => reg.id);
-      let ticketsData: Record<string, any> = {};
+      let ticketsData: Record<string, unknown> = {};
       
       if (registrationIds.length > 0) {
         const { data: tickets, error: ticketsError } = await supabase
@@ -266,7 +266,7 @@ export class ExportService {
           ticketsData = (tickets || []).reduce((acc, ticket) => {
             acc[ticket.registration_id] = ticket;
             return acc;
-          }, {} as Record<string, any>);
+          }, {} as Record<string, unknown>);
         }
       }
 
@@ -983,4 +983,4 @@ export class ExportService {
       }
     ];
   }
-} 
+}

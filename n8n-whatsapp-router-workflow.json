@@ -1,0 +1,410 @@
+{
+  "name": "WhatsApp Webhook Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-receiver",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "whatsapp-webhook-id"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "message-type-check",
+              "leftValue": "={{ $json.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.type }}",
+              "rightValue": "text",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "message-filter",
+      "name": "Filter Messages",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract WhatsApp data\nconst webhookData = $input.all()[0].json;\n\n// Parse WhatsApp webhook structure\nconst entry = webhookData.entry?.[0];\nconst changes = entry?.changes?.[0];\nconst value = changes?.value;\nconst messages = value?.messages?.[0];\nconst contacts = value?.contacts?.[0];\n\n// Extract relevant information\nconst extractedData = {\n  // Original webhook data\n  originalData: webhookData,\n  \n  // Parsed data\n  messageId: messages?.id,\n  from: messages?.from,\n  timestamp: messages?.timestamp,\n  messageType: messages?.type,\n  messageText: messages?.text?.body,\n  \n  // Contact info\n  contactName: contacts?.profile?.name,\n  contactWaId: contacts?.wa_id,\n  \n  // Business info\n  businessPhoneNumberId: value?.metadata?.phone_number_id,\n  businessDisplayPhoneNumber: value?.metadata?.display_phone_number,\n  \n  // Processing timestamp\n  processedAt: new Date().toISOString(),\n  \n  // Event type for routing\n  eventType: 'whatsapp_message_received'\n};\n\nreturn extractedData;"
+      },
+      "id": "data-parser",
+      "name": "Parse WhatsApp Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://mjolfjoqfnszvvlbzhjn.supabase.co/functions/v1/whatsapp-webhook",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_SUPABASE_ANON_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3
+          }
+        }
+      },
+      "id": "supabase-webhook",
+      "name": "Send to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://mjolfjoqfnszvvlbzhjn.supabase.co/functions/v1/send-whatsapp-ticket",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_SUPABASE_ANON_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "jsonBody": "={{ JSON.stringify({\n  phone_number: $json.from,\n  message: $json.messageText,\n  event_id: 'auto-response',\n  webhook_data: $json.originalData\n}) }}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 3
+          }
+        }
+      },
+      "id": "auto-response",
+      "name": "Auto Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://your-analytics-endpoint.com/webhook",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "YOUR_ANALYTICS_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "jsonBody": "={{ JSON.stringify({\n  event: 'whatsapp_message',\n  phone: $json.from,\n  timestamp: $json.processedAt,\n  message_type: $json.messageType,\n  business_phone: $json.businessDisplayPhoneNumber\n}) }}",
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "enabled": true,
+            "maxTries": 2
+          }
+        }
+      },
+      "id": "analytics-tracking",
+      "name": "Analytics Tracking",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://your-logging-service.com/logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "jsonBody": "={{ JSON.stringify({\n  level: 'info',\n  service: 'whatsapp-webhook',\n  message: 'WhatsApp message processed',\n  data: $json,\n  timestamp: new Date().toISOString()\n}) }}",
+        "options": {
+          "timeout": 5000,
+          "continueOnFail": true
+        }
+      },
+      "id": "logging-service",
+      "name": "Logging Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all responses from parallel executions\nconst responses = $input.all();\n\n// Create summary response\nconst summary = {\n  success: true,\n  message: 'WhatsApp webhook processed successfully',\n  timestamp: new Date().toISOString(),\n  endpoints_called: responses.length,\n  responses: responses.map((response, index) => ({\n    endpoint: index + 1,\n    status: response.json?.status || 'completed',\n    response_time: response.json?.response_time || 'unknown'\n  }))\n};\n\nreturn summary;"
+      },
+      "id": "response-aggregator",
+      "name": "Aggregate Responses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: false,\n  message: 'Message type not supported',\n  timestamp: new Date().toISOString()\n}) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "unsupported-response",
+      "name": "Unsupported Message",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error handling and logging\nconst error = $input.all()[0];\n\nconst errorResponse = {\n  success: false,\n  message: 'Error processing WhatsApp webhook',\n  error: error.error?.message || 'Unknown error',\n  timestamp: new Date().toISOString()\n};\n\n// Log error (you can send this to your logging service)\nconsole.error('WhatsApp Webhook Error:', errorResponse);\n\nreturn errorResponse;"
+      },
+      "id": "error-handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Filter Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Messages": {
+      "main": [
+        [
+          {
+            "node": "Parse WhatsApp Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unsupported Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse WhatsApp Data": {
+      "main": [
+        [
+          {
+            "node": "Send to Supabase",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Auto Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Analytics Tracking",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Logging Service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto Response": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analytics Tracking": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Logging Service": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Responses": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-13T18:45:00.000Z",
+      "updatedAt": "2025-01-13T18:45:00.000Z",
+      "id": "whatsapp-integration",
+      "name": "WhatsApp Integration"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-13T18:45:00.000Z",
+  "versionId": "1"
+}

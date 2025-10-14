@@ -145,42 +145,42 @@ export function RegistrationForm({
     const digitsOnly = phoneNumber.replace(/\D/g, '');
     
     // Indonesian mobile number validation rules:
-    // - Total length: 10-13 digits (including country code)
-    // - Valid formats: 628xxxxxxxxxx (13 digits), 08xxxxxxxxxx (12 digits), 8xxxxxxxxx (11 digits), xxxxxxxxxx (10 digits)
+    // - Total length: 10-14 digits (including country code)
+    // - Valid formats: 628xxxxxxxxxxx (14 digits), 628xxxxxxxxxx (13 digits), 08xxxxxxxxxx (12 digits), 8xxxxxxxxx (11 digits), xxxxxxxxxx (10 digits)
     
-    if (digitsOnly.startsWith('62') && digitsOnly.length === 13) {
-      // Already in correct format: 628xxxxxxxxxx (13 digits)
-      return { 
-        isValid: true, 
-        formatted: digitsOnly, 
-        message: 'WhatsApp number format is valid' 
-      };
-    } else if (digitsOnly.startsWith('08') && digitsOnly.length === 12) {
-      // Convert from 08xxxxxxxxxx to 628xxxxxxxxxx (12 digits -> 13 digits)
-      const formatted = '62' + digitsOnly.substring(1);
-      return { 
-        isValid: true, 
-        formatted, 
-        message: `Will be formatted as: ${formatted}` 
-      };
-    } else if (digitsOnly.startsWith('8') && digitsOnly.length === 11) {
-      // Convert from 8xxxxxxxxx to 628xxxxxxxxxx (11 digits -> 13 digits)
-      const formatted = '62' + digitsOnly;
-      return { 
-        isValid: true, 
-        formatted, 
-        message: `Will be formatted as: ${formatted}` 
-      };
-    } else if (digitsOnly.length === 10 && !digitsOnly.startsWith('0') && !digitsOnly.startsWith('8')) {
-      // Convert from xxxxxxxxxx to 628xxxxxxxxxx (10 digits -> 13 digits)
-      // Only for numbers that don't start with 0 or 8
-      const formatted = '62' + digitsOnly;
-      return { 
-        isValid: true, 
-        formatted, 
-        message: `Will be formatted as: ${formatted}` 
-      };
-    } else {
+    if (digitsOnly.startsWith('62') && (digitsOnly.length === 14 || digitsOnly.length === 13 || digitsOnly.length === 11)) {
+    // Already in correct format: 628xxxxxxxxxxx (14 digits), 628xxxxxxxxxx (13 digits), or 628xxxxxxxxx (11 digits)
+    return { 
+      isValid: true, 
+      formatted: digitsOnly, 
+      message: 'WhatsApp number format is valid' 
+    };
+  } else if (digitsOnly.startsWith('08') && (digitsOnly.length >= 10 && digitsOnly.length <= 13)) {
+    // Convert from 08xxxxxxxxxx to 628xxxxxxxxxx (10-13 digits)
+    const formatted = '62' + digitsOnly.substring(1);
+    return { 
+      isValid: true, 
+      formatted, 
+      message: `Will be formatted as: ${formatted}` 
+    };
+  } else if (digitsOnly.startsWith('8') && (digitsOnly.length >= 9 && digitsOnly.length <= 12)) {
+    // Convert from 8xxxxxxxxx to 628xxxxxxxxxx (9-12 digits)
+    const formatted = '62' + digitsOnly;
+    return { 
+      isValid: true, 
+      formatted, 
+      message: `Will be formatted as: ${formatted}` 
+    };
+  } else if (digitsOnly.length === 10 && !digitsOnly.startsWith('0') && !digitsOnly.startsWith('8')) {
+    // Convert from xxxxxxxxxx to 628xxxxxxxxxx (10 digits -> 13 digits)
+    // Only for numbers that don't start with 0 or 8
+    const formatted = '62' + digitsOnly;
+    return { 
+      isValid: true, 
+      formatted, 
+      message: `Will be formatted as: ${formatted}` 
+    };
+  } else {
       return { 
         isValid: false, 
         formatted: '', 
@@ -616,4 +616,4 @@ export function RegistrationForm({
       </Card>
     </div>
   );
-} 
+}

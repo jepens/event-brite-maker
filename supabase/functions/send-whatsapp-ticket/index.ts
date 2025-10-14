@@ -39,8 +39,8 @@ function validatePhoneNumber(phone) {
   // Support multiple formats: 628xxxxxxxxxx, 08xxxxxxxxxx, 8xxxxxxxxx, xxxxxxxxxx
   const digitsOnly = phone.replace(/\D/g, '');
   
-  // Check if it's already in correct format: 628xxxxxxxxxx (13 digits) or 628xxxxxxxxx (11 digits)
-  if (digitsOnly.startsWith('62') && (digitsOnly.length === 13 || digitsOnly.length === 11)) {
+  // Check if it's already in correct format: 628xxxxxxxxxxx (14 digits) or 628xxxxxxxxxx (13 digits) or 628xxxxxxxxx (11 digits)
+  if (digitsOnly.startsWith('62') && (digitsOnly.length === 14 || digitsOnly.length === 13 || digitsOnly.length === 11)) {
     return true;
   }
   
@@ -237,8 +237,8 @@ const handler = async (req)=>{
         startsWith8: digitsOnly.startsWith('8')
       });
       
-      if (digitsOnly.startsWith('62') && (digitsOnly.length === 13 || digitsOnly.length === 11)) {
-        return digitsOnly; // Already in correct format (628xxxxxxxxxx or 628xxxxxxxxx)
+      if (digitsOnly.startsWith('62') && (digitsOnly.length === 14 || digitsOnly.length === 13 || digitsOnly.length === 11)) {
+        return digitsOnly; // Already in correct format (628xxxxxxxxxxx, 628xxxxxxxxxx or 628xxxxxxxxx)
       } else if (digitsOnly.startsWith('08') && (digitsOnly.length >= 10 && digitsOnly.length <= 13)) {
         return '62' + digitsOnly.substring(1); // Convert 08xxxxxxxx, 08xxxxxxxxx, 08xxxxxxxxxx, or 08xxxxxxxxxxx to 628xxxxxxxxxx
       } else if (digitsOnly.startsWith('8') && digitsOnly.length === 11) {

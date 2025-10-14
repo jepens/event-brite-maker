@@ -37,6 +37,7 @@ If you encounter errors when resending WhatsApp tickets:
    - `WHATSAPP_PHONE_NUMBER_ID`
    - `WHATSAPP_TEMPLATE_NAME`
 4. **Phone Number Format**: Supported formats (all will be converted to 628xxxxxxxxxx):
+   - `628xxxxxxxxxxx` (14 digits) - Already correct format
    - `628xxxxxxxxxx` (13 digits) - Already correct format
    - `628xxxxxxxxx` (11 digits) - Already correct format
    - `08xxxxxxxxxxx` (13 digits) - Will be converted to 628xxxxxxxxxx

@@ -1,11 +1,12 @@
 import { supabase } from '@/integrations/supabase/client';
 
 // Helper function to handle Supabase errors
-const handleSupabaseError = (error: any, context: string) => {
+const handleSupabaseError = (error: unknown, context: string) => {
   console.error(`❌ ${context}:`, error);
   
-  if (error?.code) {
-    switch (error.code) {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const supabaseError = error as { code: string; message?: string };
+    switch (supabaseError.code) {
       case '23505': // Unique constraint violation
         return 'Data duplikat ditemukan';
       case '23514': // Check constraint violation
@@ -73,7 +74,7 @@ export interface ImportResult {
     phone: string;
     error_message: string;
     error_field: string;
-    original_data: Record<string, any>;
+    original_data: Record<string, unknown>;
   }>;
 }
 
@@ -979,7 +980,7 @@ export class ImportService {
           participant_email: '',
           phone_number: null,
           status: options.defaultStatus,
-          custom_data: {} as Record<string, any>,
+          custom_data: {} as Record<string, unknown>,
           registered_at: new Date().toISOString()
         };
 
@@ -1447,7 +1448,7 @@ export class ImportService {
 
       // Validate phone number format if provided
       if (reg.phone_number && reg.phone_number.trim()) {
-        const phoneRegex = /^[\+]?[0-9\s\-\(\)]{8,}$/;
+        const phoneRegex = /^[+]?[0-9\s\-()]{8,}$/;
         if (!phoneRegex.test(reg.phone_number.replace(/\s/g, ''))) {
           console.log(`⚠️ Warning: Invalid phone format for ${reg.participant_name}: ${reg.phone_number}`);
           // Don't fail the import, just log a warning
@@ -1723,7 +1724,7 @@ export class ImportService {
     phone: string;
     error_message: string;
     error_field: string;
-    original_data: Record<string, any>;
+    original_data: Record<string, unknown>;
   }>): string {
     if (failedImportData.length === 0) {
       return '';
@@ -1767,7 +1768,7 @@ export class ImportService {
     phone: string;
     error_message: string;
     error_field: string;
-    original_data: Record<string, any>;
+    original_data: Record<string, unknown>;
   }>, filename: string = 'failed-imports.csv'): void {
     const csvContent = this.exportFailedImportsToCSV(failedImportData);
     
@@ -1794,7 +1795,7 @@ export class ImportService {
   static async testImportService(eventId: string): Promise<{
     success: boolean;
     message: string;
-    details?: any;
+    details?: unknown;
   }> {
     try {
       console.log('🧪 Testing import service for event:', eventId);

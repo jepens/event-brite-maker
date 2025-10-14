@@ -125,7 +125,7 @@ export interface ImportResult {
     phone: string;
     error_message: string;
     error_field: string;
-    original_data: Record<string, any>;
+    original_data: Record<string, unknown>;
   }>;
 }
 
@@ -181,4 +181,4 @@ export const VALIDATION_PRESETS = {
   },
 } as const;
 
-export type ValidationPreset = keyof typeof VALIDATION_PRESETS; 
+export type ValidationPreset = keyof typeof VALIDATION_PRESETS;

@@ -42,3 +42,6 @@ verify_jwt = false
 
 [functions.send-whatsapp-ticket]
 verify_jwt = false
+
+[functions.send-whatsapp-blast]
+verify_jwt = false

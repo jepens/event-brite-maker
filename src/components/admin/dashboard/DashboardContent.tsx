@@ -4,6 +4,7 @@ import { RegistrationsManagement } from '../registrations/RegistrationsManagemen
 import { OfflineQRScanner } from '../scanner/OfflineQRScanner';
 import { CheckinReport } from '../CheckinReport';
 import { PWAStatus } from '../PWAStatus';
+import { WhatsAppBlastManagement } from '../whatsapp/WhatsAppBlastManagement';
 import { useMobile } from '@/hooks/use-mobile';
 
 interface DashboardContentProps {
@@ -18,9 +19,10 @@ export function DashboardContent({ activeTab, onTabChange }: DashboardContentPro
     <main className="container mx-auto px-4 py-6 dashboard-content">
       <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-6">
         {!isMobile && (
-          <TabsList className="grid w-full grid-cols-5 tabs-list">
+          <TabsList className="grid w-full grid-cols-6 tabs-list">
             <TabsTrigger value="events" className="tabs-trigger">Events</TabsTrigger>
             <TabsTrigger value="registrations" className="tabs-trigger">Registrations</TabsTrigger>
+            <TabsTrigger value="whatsapp" className="tabs-trigger">WhatsApp Blast</TabsTrigger>
             <TabsTrigger value="scanner" className="tabs-trigger">QR Scanner</TabsTrigger>
             <TabsTrigger value="reports" className="tabs-trigger">Reports</TabsTrigger>
             <TabsTrigger value="pwa" className="tabs-trigger">PWA Status</TabsTrigger>
@@ -33,6 +35,10 @@ export function DashboardContent({ activeTab, onTabChange }: DashboardContentPro
 
         <TabsContent value="registrations" className="space-y-6">
           <RegistrationsManagement />
+        </TabsContent>
+
+        <TabsContent value="whatsapp" className="space-y-6">
+          <WhatsAppBlastManagement />
         </TabsContent>
 
         <TabsContent value="scanner" className="space-y-6">
@@ -53,4 +59,4 @@ export function DashboardContent({ activeTab, onTabChange }: DashboardContentPro
       </Tabs>
     </main>
   );
-} 
+}

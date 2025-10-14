@@ -1,4 +1,4 @@
-import { Calendar, Users, QrCode, BarChart3, Smartphone } from 'lucide-react';
+import { Calendar, Users, MessageSquare, QrCode, BarChart3, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MobileNavigationProps {
@@ -10,6 +10,7 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
   const tabs = [
     { value: 'events', label: 'Events', icon: Calendar },
     { value: 'registrations', label: 'Registrations', icon: Users },
+    { value: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
     { value: 'scanner', label: 'Scanner', icon: QrCode },
     { value: 'reports', label: 'Reports', icon: BarChart3 },
     { value: 'pwa', label: 'PWA', icon: Smartphone },
@@ -17,7 +18,7 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
 
   return (
     <nav className="mobile-nav">
-      <div className="grid grid-cols-5 gap-1">
+      <div className="grid grid-cols-6 gap-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.value;
@@ -41,4 +42,4 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
       </div>
     </nav>
   );
-} 
+}
